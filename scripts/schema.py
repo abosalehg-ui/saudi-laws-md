@@ -32,6 +32,8 @@ class LawDocument:
     retrieved_at: str | None = None
     is_decision: bool = False      # قرار (أولا/ثانيا/...) بلا مواد، بدل نظام كامل
     issued_date: str | None = None  # تاريخ صدور القرار كما ورد ("صدر في: ...")
+    doc_type: str | None = None    # النوع المكتشف: نظام/لائحة/مرسوم/أمر/قرار/اتفاقية/معايير...
+    body: str | None = None        # متن الوثائق غير المقسّمة لمواد (أدلة/معايير/جداول)، Markdown جاهز
 
 
 def sequence_warnings(doc: LawDocument) -> list[str]:
@@ -58,4 +60,46 @@ def sequence_warnings(doc: LawDocument) -> list[str]:
                 f"خلل في التسلسل: بعد المادة {prev} جاءت المادة {art.number_int}"
             )
         prev = art.number_int
+    return warnings
+
+
+# أنماط ضجيج واجهة يجب ألا تتسرب إلى متن أي مادة/وثيقة
+_NOISE_PATTERNS = (
+    "مشاركة المادة",
+    "رابط المادة",
+    "النص والرابط",
+    "رقم المادة",
+    "حجم الخط",
+    "عدد القراءات",
+    "جميع الحقوق",
+)
+
+
+def validate_document(doc: LawDocument) -> list[str]:
+    """تحقق شامل يعيد قائمة تحذيرات (لا يرفع استثناء).
+
+    يغطي: تسلسل المواد، ضجيج الواجهة، المواد الفارغة، وخلوّ الوثيقة من
+    أي محتوى. الغرض رصد أعطال الاستخراج مبكرًا في الاستيراد بالجملة.
+    """
+    warnings = list(sequence_warnings(doc))
+
+    has_content = bool(doc.articles) or bool((doc.body or "").strip())
+    if not has_content:
+        warnings.append("الوثيقة بلا محتوى: لا مواد ولا متن")
+
+    haystacks = [a.text for a in doc.articles]
+    if doc.body:
+        haystacks.append(doc.body)
+    for text in haystacks:
+        for pattern in _NOISE_PATTERNS:
+            if pattern in text:
+                warnings.append(f"بقايا ضجيج واجهة في المتن: «{pattern}»")
+                break
+
+    empty = [a.number for a in doc.articles if not a.text.strip()]
+    if empty:
+        preview = "، ".join(empty[:5])
+        more = f" (+{len(empty) - 5})" if len(empty) > 5 else ""
+        warnings.append(f"مواد بلا متن: {preview}{more}")
+
     return warnings

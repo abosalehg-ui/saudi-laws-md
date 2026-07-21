@@ -33,6 +33,8 @@ def format_document(doc: LawDocument) -> str:
     lines.append(f"title: {_quote(doc.title)}")
     lines.append(f"source: {doc.source}")
     lines.append(f"source_url: {_quote(doc.source_url)}")
+    if doc.doc_type:
+        lines.append(f"doc_type: {_quote(doc.doc_type)}")
     for key in (
         "issued_by",
         "issued_date",
@@ -55,6 +57,12 @@ def format_document(doc: LawDocument) -> str:
     lines.append("---")
     lines.append("")
     lines.append(f"# {doc.title}")
+
+    # وثيقة غير مقسّمة لمواد: نُدرج المتن الجاهز كما هو
+    if not doc.articles and doc.body:
+        lines.append("")
+        lines.append(doc.body.strip())
+        return "\n".join(lines) + "\n"
 
     has_sections = any(a.section for a in doc.articles)
     article_heading = "###" if has_sections else "##"

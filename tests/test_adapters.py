@@ -69,9 +69,22 @@ class TestQanoonsa:
             for art in qanoonsa_doc.articles:
                 assert noise not in art.text
 
-    def test_missing_articles_raises(self):
+    def test_prose_page_becomes_body_not_failure(self):
+        # صفحة بلا مواد لكن بمحتوى نصي تُحوَّل إلى body بدل رفعها كفشل
+        doc = get_adapter("qanoonsa").parse(
+            "<html><h1>عنوان</h1>"
+            '<div class="entry-content"><p>فقرة أولى.</p><p>فقرة ثانية.</p></div></html>',
+            "",
+        )
+        assert doc.articles == []
+        assert "فقرة أولى." in doc.body
+        assert "فقرة ثانية." in doc.body
+
+    def test_truly_empty_page_raises(self):
         with pytest.raises(ParseError):
-            get_adapter("qanoonsa").parse("<html><h1>عنوان</h1><p>بدون مواد</p></html>", "")
+            get_adapter("qanoonsa").parse(
+                '<html><h1>عنوان</h1><div class="entry-content"></div></html>', ""
+            )
 
 
 class TestQanoonsaDecision:
@@ -186,18 +199,32 @@ class TestCli:
             "--out", str(tmp_path / "laws"),
         ])
         assert code == 0
+        # التصنيف الخام يُبسَّط تلقائيًا (تُحذف بادئة "الأنظمة السعودية –")
         out_file = (
             tmp_path / "laws"
-            / "الأنظمة السعودية – أنظمة العمل والرعاية الاجتماعية"
+            / "أنظمة العمل والرعاية الاجتماعية"
             / "نظام العمل.md"
         )
         assert out_file.exists()
         content = out_file.read_text(encoding="utf-8")
         assert content.startswith("---\n")
+        assert 'doc_type: "نظام"' in content
         assert "المادة الخامسة" in content
         assert "> **تعديلات المادة:**" in content
         for noise in ("مشاركة المادة", "النص والرابط"):
             assert noise not in content
+
+    def test_done_log_round_trip(self, tmp_path):
+        from scripts.main import load_done, log_done
+
+        log = tmp_path / "done.txt"
+        assert load_done(log) == set()
+        log_done("https://qanoonsa.com/p/1/", log)
+        log_done("https://qanoonsa.com/p/2/", log)
+        assert load_done(log) == {
+            "https://qanoonsa.com/p/1/",
+            "https://qanoonsa.com/p/2/",
+        }
 
     def test_failure_logged_not_fatal(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -208,3 +235,50 @@ class TestCli:
         log = tmp_path / "logs" / "failed.txt"
         assert log.exists()
         assert "bad.html" in log.read_text(encoding="utf-8")
+
+    def test_resume_state_recovered_from_committed_output(self, tmp_path):
+        # حالة الاستئناف الدائمة تُشتق من source_url في ملفات laws/ المُلتزَمة،
+        # فيعمل --resume حتى في جلسة جديدة بلا logs/done.txt
+        from scripts.main import load_done_from_output
+
+        out = tmp_path / "laws" / "عمل"
+        out.mkdir(parents=True)
+        (out / "نظام العمل.md").write_text(
+            '---\ntitle: "نظام العمل"\nsource_url: "https://nezams.com/نظام-العمل/"\n---\n',
+            encoding="utf-8",
+        )
+        (out / "بلا-رابط.md").write_text('---\ntitle: "x"\n---\n', encoding="utf-8")
+        assert load_done_from_output(tmp_path / "laws") == {
+            "https://nezams.com/نظام-العمل/"
+        }
+        assert load_done_from_output(tmp_path / "غير-موجود") == set()
+
+    def test_discover_and_report_end_to_end(self, tmp_path, monkeypatch):
+        # اكتشاف + تحويل + تقرير في أمر واحد، بلا شبكة (fetcher و discover مُموّهان)
+        import scripts.main as main_mod
+
+        nezams_html = (FIXTURES / "nezams_sample.html").read_text(encoding="utf-8")
+        url = "https://nezams.com/نظام-العمل/"
+
+        class FakeFetcher:
+            def __init__(self, *a, **k):
+                pass
+
+            def get(self, u):
+                return nezams_html
+
+        monkeypatch.setattr(main_mod, "Fetcher", FakeFetcher)
+        monkeypatch.setattr(main_mod, "discover", lambda source, fetcher, **k: [url])
+        monkeypatch.chdir(tmp_path)
+
+        code = run([
+            "--discover", "nezams",
+            "--out", str(tmp_path / "laws"),
+            "--report",
+        ])
+        assert code == 0
+        summary = (tmp_path / "logs" / "summary.md").read_text(encoding="utf-8")
+        assert "نجح: **1**" in summary
+        assert "نظام: 1" in summary
+        # التصنيف المبسّط استُخدم في مسار المخرجات
+        assert (tmp_path / "laws" / "أنظمة العمل والرعاية الاجتماعية" / "نظام العمل.md").exists()

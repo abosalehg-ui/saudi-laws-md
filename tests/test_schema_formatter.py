@@ -7,7 +7,12 @@ from scripts.formatter import (
     output_path,
     sanitize_filename,
 )
-from scripts.schema import Article, LawDocument, sequence_warnings
+from scripts.schema import (
+    Article,
+    LawDocument,
+    sequence_warnings,
+    validate_document,
+)
 
 
 def make_doc(**overrides):
@@ -119,6 +124,46 @@ def test_sanitize_filename_respects_byte_limit_for_arabic():
     name = sanitize_filename(long_title)
     assert len(name.encode("utf-8")) <= 200
     assert name  # لا يفرغ الاسم تمامًا
+
+
+def test_validate_document_flags_noise_empty_and_no_content():
+    doc = make_doc()
+    doc.articles.append(Article(number="الثالثة", text="", number_int=3))  # فارغة
+    doc.articles.append(
+        Article(number="الرابعة", text="نص فيه مشاركة المادة", number_int=4)
+    )
+    warnings = validate_document(doc)
+    assert any("بقايا ضجيج واجهة" in w for w in warnings)
+    assert any("مواد بلا متن" in w for w in warnings)
+
+    empty_doc = LawDocument(title="فارغ", source="qanoonsa", source_url="")
+    assert any("بلا محتوى" in w for w in validate_document(empty_doc))
+
+
+def test_validate_document_accepts_prose_body():
+    doc = LawDocument(
+        title="دليل",
+        source="qanoonsa",
+        source_url="",
+        doc_type="معايير",
+        body="### قسم\n\nفقرة نظيفة.",
+    )
+    assert validate_document(doc) == []
+
+
+def test_prose_body_document_renders_without_articles():
+    doc = LawDocument(
+        title="معايير الاحتساب",
+        source="qanoonsa",
+        source_url="https://qanoonsa.com/p/1/",
+        doc_type="معايير",
+        body="### القسم الأول\n\n| أ | ب |\n| --- | --- |\n| ١ | ٢ |",
+    )
+    md = format_document(doc)
+    assert 'doc_type: "معايير"' in md
+    assert "# معايير الاحتساب" in md
+    assert "| أ | ب |" in md
+    assert "المادة" not in md
 
 
 def test_decision_document_omits_madda_prefix():
