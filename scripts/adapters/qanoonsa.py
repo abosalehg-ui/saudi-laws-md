@@ -26,13 +26,14 @@ class QanoonsaAdapter(BaseAdapter):
 
     def parse(self, html: str, url: str) -> LawDocument:
         soup = BeautifulSoup(html, "lxml")
-        for tag in soup(["script", "style", "nav", "header", "footer", "aside", "form"]):
-            tag.decompose()
-
+        # الـ h1 يقع داخل header.entry-header في قالب WordPress، فيُلتقط قبل حذف الأغلفة
         h1 = soup.find("h1")
         if h1 is None:
             raise ParseError("لم يُعثر على عنوان الصفحة (h1)")
         title = " ".join(h1.get_text(" ", strip=True).split())
+
+        for tag in soup(["script", "style", "nav", "header", "footer", "aside", "form"]):
+            tag.decompose()
 
         content = soup.find(class_="entry-content") or soup.find("article") or soup.body or soup
 
