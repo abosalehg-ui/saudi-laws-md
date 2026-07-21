@@ -38,7 +38,8 @@ def process_html(html: str, url: str, source: str, args: argparse.Namespace) -> 
     path = output_path(doc, Path(args.out))
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(format_document(doc), encoding="utf-8")
-    print(f"{len(doc.articles)} مادة ← {path}")
+    unit = "بند" if doc.is_decision else "مادة"
+    print(f"{len(doc.articles)} {unit} ← {path}")
     return path
 
 

@@ -3,6 +3,11 @@
 الصفحات مبنية على WordPress: العنوان في h1، والمواد عناوين h2/h3 داخل
 entry-content، وسطر "صدر بموجب..." قبل أول مادة، وسطر النشر في أم القرى بعد آخرها.
 لا يعرض الموقع سجل تعديلات منفصلًا — النص المعروض هو النسخة الحالية فقط.
+
+بعض الصفحات (مثل /p/516402/) ليست نصّ نظام بل نصّ قرار مجلس وزراء: لا تحوي
+"المادة ..." بل بنودًا مرقّمة "أولا"/"ثانيا"/... تحت عنوان "يقرر ما يلي"،
+وتُختم بتوقيع "رئيس مجلس الوزراء" وسطر "صدر في: ...". تُعامَل هذه كوثيقة
+قرار (is_decision) بدل نظام إذا لم تحوِ الصفحة أي مادة.
 """
 
 from __future__ import annotations
@@ -16,9 +21,13 @@ from ..schema import Article, LawDocument
 from .base import BaseAdapter, ParseError
 
 _ARTICLE_HEADING_RE = re.compile(r"^المادة\s+(.+)$")
+_CLAUSE_HEADING_RE = re.compile(
+    r"^(أولا|ثانيا|ثالثا|رابعا|خامسا|سادسا|سابعا|ثامنا|تاسعا|عاشرا)ً?$"
+)
 _GAZETTE_RE = re.compile(r"ن?ُ?شر\s+في\s+عدد\s+جريدة\s+[أا]م\s+القرى")
 _ISSUED_RE = re.compile(r"^صدر\s+بموجب\s*:?\s*(.+)$")
-_SECTION_PREFIX_RE = re.compile(r"^(الباب|الفصل)\s+\S+")
+_ISSUED_DATE_RE = re.compile(r"^صدر\s+في\s*:?\s*(.+)$")
+_SIGNER_RE = re.compile(r"^(رئيس|نائب رئيس)\s+مجلس\s+الوزراء$")
 
 
 class QanoonsaAdapter(BaseAdapter):
@@ -38,6 +47,7 @@ class QanoonsaAdapter(BaseAdapter):
         content = soup.find(class_="entry-content") or soup.find("article") or soup.body or soup
 
         doc = LawDocument(title=title, source=self.source, source_url=url)
+        clauses: list[Article] = []
         current: Article | None = None
         current_bab: str | None = None
         current_fasl: str | None = None
@@ -49,6 +59,7 @@ class QanoonsaAdapter(BaseAdapter):
                 continue
             if el.name in ("h2", "h3", "h4"):
                 m = _ARTICLE_HEADING_RE.match(text)
+                cm = _CLAUSE_HEADING_RE.match(text) if not m else None
                 if m:
                     label = m.group(1).strip()
                     number_int, is_bis = parse_article_label(label)
@@ -61,15 +72,23 @@ class QanoonsaAdapter(BaseAdapter):
                         is_bis=is_bis,
                     )
                     doc.articles.append(current)
+                elif cm:
+                    current = Article(number=cm.group(1), text="")
+                    clauses.append(current)
                 elif text.startswith("الباب"):
                     current_bab, current_fasl, current = text, None, None
                 elif text.startswith("الفصل"):
                     current_fasl, current = text, None
                 else:
-                    current = None  # عنوان فرعي آخر لا يتبع نمط المواد
+                    current = None  # عنوان فرعي آخر لا يتبع نمط المواد أو البنود
             else:
                 if _GAZETTE_RE.search(text):
                     doc.gazette_ref = text
+                    continue
+                if _ISSUED_DATE_RE.match(text):
+                    doc.issued_date = _ISSUED_DATE_RE.match(text).group(1).strip()
+                    continue
+                if _SIGNER_RE.match(text):
                     continue
                 if current is not None:
                     current.text += ("\n\n" if current.text else "") + text
@@ -81,6 +100,10 @@ class QanoonsaAdapter(BaseAdapter):
             if m and doc.issued_by is None:
                 doc.issued_by = m.group(1).strip().rstrip(".")
 
+        if not doc.articles and clauses:
+            doc.is_decision = True
+            doc.articles = clauses
+
         if not doc.articles:
-            raise ParseError("لم يُستخرج أي مادة من الصفحة")
+            raise ParseError("لم يُستخرج أي مادة أو بند من الصفحة")
         return doc

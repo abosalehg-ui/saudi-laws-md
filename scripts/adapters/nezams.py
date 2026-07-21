@@ -25,9 +25,13 @@ from ..schema import Article, LawDocument
 from .base import BaseAdapter, ParseError
 
 _ARTICLE_LABEL_RE = re.compile(r"^المادة\s+(.+)$")
+# جملة التعديل قد تلتصق بالنص المقتبس الجديد على السطر نفسه دون فاصل
+# ("...لتكون بالنص الآتي:«يعاقب...»")؛ يُوقف الالتقاط عند "لتكون بالنص
+# الآتي:" إن وُجدت، وإلا فحتى نهاية السطر (تعديل بلا نص مقتبس جديد).
 _AMEND_LINE_RE = re.compile(
-    r"^تم\s+(?:بموجب\s+(?:المرسوم\s+الملكي|قرار)\s.*?(?:تعديل|إلغاء|إضافة)"
-    r"|(?:تعديل|إلغاء|إضافة)\s+هذه\s+المادة\s+بموجب).*$"
+    r"^(تم\s+(?:بموجب\s+(?:المرسوم\s+الملكي|قرار)\s.*?(?:تعديل|إلغاء|إضافة)"
+    r"|(?:تعديل|إلغاء|إضافة)\s+هذه\s+المادة\s+بموجب)"
+    r"[^:]*?(?:لتكون\s+بالنص\s+الآتي\s*:|$))"
 )
 _FIELD_MAP = {
     "تاريخ النظام": "approval_date_hijri",
@@ -84,8 +88,12 @@ class NezamsAdapter(BaseAdapter):
             for line in lines:
                 if not line:
                     continue
-                if _AMEND_LINE_RE.match(line):
-                    amendments.append(line)
+                m = _AMEND_LINE_RE.match(line)
+                if m:
+                    amendments.append(m.group(1).strip())
+                    remainder = line[m.end():].strip()
+                    if remainder:
+                        body.append(remainder)
                 else:
                     body.append(line)
 

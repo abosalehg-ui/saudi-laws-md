@@ -14,6 +14,9 @@ FIXTURES = Path(__file__).parent / "fixtures"
 #   المحجوزة والمصادرة، 15 مادة كاملة) بعد حذف script/style وأمثالها.
 # - nezams_sample.html: https://nezams.com/نظام-العمل/ بعد إبقاء المواد 1-5
 #   والمادة 79 و79 مكرر فقط من أصل 250.
+# - qanoonsa_decision_sample.html: https://qanoonsa.com/p/516402/ (قرار مجلس
+#   الوزراء رقم ١٦ الذي أقرّ النظام أعلاه) — صفحة قرار بلا مواد، بنودها
+#   أولا/ثانيا/ثالثا فقط.
 
 UI_NOISE = ["مشاركة المادة", "رابط المادة", "النص والرابط", "رقم المادة", "جميع الحقوق"]
 
@@ -29,6 +32,12 @@ def test_detect_source():
 def qanoonsa_doc():
     html = (FIXTURES / "qanoonsa_sample.html").read_text(encoding="utf-8")
     return get_adapter("qanoonsa").parse(html, "https://qanoonsa.com/p/516403/")
+
+
+@pytest.fixture
+def qanoonsa_decision_doc():
+    html = (FIXTURES / "qanoonsa_decision_sample.html").read_text(encoding="utf-8")
+    return get_adapter("qanoonsa").parse(html, "https://qanoonsa.com/p/516402/")
 
 
 @pytest.fixture
@@ -63,6 +72,32 @@ class TestQanoonsa:
     def test_missing_articles_raises(self):
         with pytest.raises(ParseError):
             get_adapter("qanoonsa").parse("<html><h1>عنوان</h1><p>بدون مواد</p></html>", "")
+
+
+class TestQanoonsaDecision:
+    def test_metadata(self, qanoonsa_decision_doc):
+        assert qanoonsa_decision_doc.title.startswith("قرار مجلس الوزراء رقم (١٦)")
+        assert qanoonsa_decision_doc.is_decision is True
+        assert qanoonsa_decision_doc.issued_date == "١ من محرم ١٤٤٨هـ الموافق: ١٦ من يونيو ٢٠٢٦م"
+        assert "أم القرى" in qanoonsa_decision_doc.gazette_ref
+
+    def test_clauses(self, qanoonsa_decision_doc):
+        assert [a.number for a in qanoonsa_decision_doc.articles] == ["أولا", "ثانيا", "ثالثا"]
+        # لا تسلسل عددي للبنود، فلا تحذيرات رغم عدم وجود number_int
+        assert sequence_warnings(qanoonsa_decision_doc) == []
+
+    def test_no_noise(self, qanoonsa_decision_doc):
+        for art in qanoonsa_decision_doc.articles:
+            assert "رئيس مجلس الوزراء" not in art.text
+            assert "صدر في" not in art.text
+            assert "أم القرى" not in art.text
+
+    def test_rendered_without_madda_prefix(self, qanoonsa_decision_doc):
+        from scripts.formatter import format_document
+
+        content = format_document(qanoonsa_decision_doc)
+        assert "## أولا" in content
+        assert "## المادة أولا" not in content
 
 
 class TestNezams:
@@ -108,6 +143,26 @@ class TestNezams:
     def test_sections_absent(self, nezams_doc):
         # الموقع لا يعرض الأبواب/الفصول عناصر مستقلة؛ يبقى الحقل فارغًا
         assert all(a.section is None for a in nezams_doc.articles)
+
+    def test_amendment_glued_to_quote_on_same_line(self):
+        # في الصفحة الحقيقية ترد أحيانًا جملة التعديل والنص المقتبس الجديد
+        # على السطر نفسه بلا فاصل (وجد ذلك فعليًا في المادة ٢٢٩ مكرر من
+        # نظام العمل)؛ يجب ألا يبتلع regex التعديل النص المقتبس فيترك المادة
+        # بلا متن.
+        html = (
+            '<html><body><h1>نظام تجريبي</h1>'
+            '<ul class="all-subject"><li class="subject">'
+            "<h4>المادة الأولى مكرر</h4>"
+            '<div class="content"><p>'
+            "تم إضافة هذه المادة بموجب المرسوم الملكي رقم (م/44) وتاريخ 1446/2/8هـ "
+            "لتكون بالنص الآتي:«يعاقب كل من يخالف هذا النظام»"
+            "</p></div></li></ul></body></html>"
+        )
+        doc = get_adapter("nezams").parse(html, "https://nezams.com/x/")
+        art = doc.articles[0]
+        assert art.text == "«يعاقب كل من يخالف هذا النظام»"
+        assert len(art.amendment_history) == 1
+        assert art.amendment_history[0].endswith("لتكون بالنص الآتي:")
 
     def test_no_noise(self, nezams_doc):
         for art in nezams_doc.articles:

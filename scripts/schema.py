@@ -30,10 +30,17 @@ class LawDocument:
     amendments: list[str] = field(default_factory=list)  # تعديلات على مستوى النظام (تظهر في تفاصيل nezams)
     articles: list[Article] = field(default_factory=list)
     retrieved_at: str | None = None
+    is_decision: bool = False      # قرار (أولا/ثانيا/...) بلا مواد، بدل نظام كامل
+    issued_date: str | None = None  # تاريخ صدور القرار كما ورد ("صدر في: ...")
 
 
 def sequence_warnings(doc: LawDocument) -> list[str]:
-    """تحقق من تسلسل أرقام المواد؛ يعيد تحذيرات (لا يفشل) عند الفجوات أو تعذر التحويل."""
+    """تحقق من تسلسل أرقام المواد؛ يعيد تحذيرات (لا يفشل) عند الفجوات أو تعذر التحويل.
+
+    لا ينطبق على القرارات: بنودها (أولا/ثانيا/...) ليست مرقّمة تسلسليًا كالمواد.
+    """
+    if doc.is_decision:
+        return []
     warnings: list[str] = []
     prev: int | None = None
     for art in doc.articles:

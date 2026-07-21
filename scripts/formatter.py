@@ -35,6 +35,7 @@ def format_document(doc: LawDocument) -> str:
     lines.append(f"source_url: {_quote(doc.source_url)}")
     for key in (
         "issued_by",
+        "issued_date",
         "approval_date_hijri",
         "publish_date",
         "gazette_ref",
@@ -64,7 +65,8 @@ def format_document(doc: LawDocument) -> str:
             lines.append("")
             lines.append(f"## {art.section}")
         lines.append("")
-        lines.append(f"{article_heading} المادة {art.number}")
+        heading_text = art.number if doc.is_decision else f"المادة {art.number}"
+        lines.append(f"{article_heading} {heading_text}")
         lines.append("")
         lines.append(art.text.strip())
         if art.amendment_history:
@@ -75,10 +77,15 @@ def format_document(doc: LawDocument) -> str:
     return "\n".join(lines) + "\n"
 
 
+_MAX_FILENAME_BYTES = 200  # هامش أمان تحت حد 255 بايت الشائع لأنظمة الملفات، بعد ترميز UTF-8
+
+
 def sanitize_filename(name: str) -> str:
     name = re.sub(r'[/\\:*?"<>|]', " ", name)
     name = re.sub(r"\s+", " ", name).strip()
-    return name[:150] or "بدون-عنوان"
+    encoded = name.encode("utf-8")[:_MAX_FILENAME_BYTES]
+    name = encoded.decode("utf-8", errors="ignore").strip()
+    return name or "بدون-عنوان"
 
 
 def output_path(doc: LawDocument, out_dir: Path) -> Path:

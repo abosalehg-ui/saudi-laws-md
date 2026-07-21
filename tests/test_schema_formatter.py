@@ -110,3 +110,32 @@ def test_output_path_and_filename():
     doc.category = None
     assert output_path(doc, Path("laws")) == Path(f"laws/{UNCATEGORIZED}/نظام تجريبي.md")
     assert sanitize_filename('نظام "الأموال": نسخة/معدلة') == "نظام الأموال نسخة معدلة"
+
+
+def test_sanitize_filename_respects_byte_limit_for_arabic():
+    # عناوين عربية طويلة (حرفان بالبايت لكل رمز UTF-8) قد تتجاوز حد نظام
+    # الملفات (255 بايت غالبًا) رغم عدد أحرف صغير ظاهريًا
+    long_title = "ن" * 200
+    name = sanitize_filename(long_title)
+    assert len(name.encode("utf-8")) <= 200
+    assert name  # لا يفرغ الاسم تمامًا
+
+
+def test_decision_document_omits_madda_prefix():
+    doc = LawDocument(
+        title="قرار مجلس الوزراء رقم (١٦)",
+        source="qanoonsa",
+        source_url="https://qanoonsa.com/p/516402/",
+        is_decision=True,
+        issued_date="١ من محرم ١٤٤٨هـ",
+        articles=[
+            Article(number="أولا", text="الموافقة على النظام."),
+            Article(number="ثانيا", text="تشكيل لجنة."),
+        ],
+    )
+    md = format_document(doc)
+    assert 'issued_date: "١ من محرم ١٤٤٨هـ"' in md
+    assert "## أولا" in md
+    assert "## ثانيا" in md
+    assert "المادة" not in md
+    assert sequence_warnings(doc) == []
