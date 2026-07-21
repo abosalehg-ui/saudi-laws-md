@@ -1,0 +1,16 @@
+[project]
+name = "saudi-laws-md"
+version = "0.1.0"
+description = "تحويل نصوص الأنظمة السعودية من qanoonsa.com و nezams.com إلى Markdown موحد"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31",
+    "beautifulsoup4>=4.12",
+    "lxml>=4.9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
