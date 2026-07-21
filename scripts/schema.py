@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 
@@ -34,6 +35,8 @@ class LawDocument:
     issued_date: str | None = None  # تاريخ صدور القرار كما ورد ("صدر في: ...")
     doc_type: str | None = None    # النوع المكتشف: نظام/لائحة/مرسوم/أمر/قرار/اتفاقية/معايير...
     body: str | None = None        # متن الوثائق غير المقسّمة لمواد (أدلة/معايير/جداول)، Markdown جاهز
+    etag: str | None = None        # ETag آخر استجابة HTTP، لجلب شرطي لاحق (--check-updates)
+    last_modified: str | None = None  # Last-Modified آخر استجابة HTTP، لنفس الغرض
 
 
 def sequence_warnings(doc: LawDocument) -> list[str]:
@@ -74,6 +77,10 @@ _NOISE_PATTERNS = (
     "جميع الحقوق",
 )
 
+# عناوين تشبه أخطاء صيغ جداول بيانات (Excel/Google Sheets) متسرّبة من
+# الموقع المصدر نفسه، لا خللًا في الاستخراج — لوحظت حالة "#REF!" فعليًا
+_BROKEN_TITLE_RE = re.compile(r"^#(REF|N/A|VALUE|DIV/0|NAME|NULL|NUM)[!?]?$")
+
 
 def validate_document(doc: LawDocument) -> list[str]:
     """تحقق شامل يعيد قائمة تحذيرات (لا يرفع استثناء).
@@ -82,6 +89,9 @@ def validate_document(doc: LawDocument) -> list[str]:
     أي محتوى. الغرض رصد أعطال الاستخراج مبكرًا في الاستيراد بالجملة.
     """
     warnings = list(sequence_warnings(doc))
+
+    if _BROKEN_TITLE_RE.match(doc.title.strip()):
+        warnings.append(f"عنوان يشبه خطأ صيغة جدول بيانات: «{doc.title}»")
 
     has_content = bool(doc.articles) or bool((doc.body or "").strip())
     if not has_content:

@@ -16,7 +16,7 @@ class RunResult:
     """سجل معالجة رابط واحد ضمن تشغيلة."""
 
     url: str
-    status: str                       # "ok" | "failed"
+    status: str                       # "ok" | "failed" | "unchanged"
     title: str | None = None
     doc_type: str | None = None
     reason: str | None = None         # سبب الفشل عند status == "failed"
@@ -27,6 +27,7 @@ def build_summary(results: list[RunResult], skipped: int = 0) -> str:
     """يبني تقرير Markdown من نتائج التشغيلة."""
     ok = [r for r in results if r.status == "ok"]
     failed = [r for r in results if r.status == "failed"]
+    unchanged = [r for r in results if r.status == "unchanged"]
     warned = [r for r in ok if r.warnings]
     types = Counter(r.doc_type or "غير محدد" for r in ok)
 
@@ -36,9 +37,11 @@ def build_summary(results: list[RunResult], skipped: int = 0) -> str:
         f"- نجح: **{len(ok)}**",
         f"- فشل: **{len(failed)}**",
         f"- تُخطّي (مكتمل سابقًا): **{skipped}**",
-        f"- بتحذيرات: **{len(warned)}**",
-        "",
     ]
+    if unchanged:
+        lines.append(f"- بلا تغيير منذ آخر جلب: **{len(unchanged)}**")
+    lines.append(f"- بتحذيرات: **{len(warned)}**")
+    lines.append("")
 
     if types:
         lines.append("## توزيع الأنواع")

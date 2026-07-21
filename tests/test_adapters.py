@@ -253,6 +253,29 @@ class TestCli:
         }
         assert load_done_from_output(tmp_path / "غير-موجود") == set()
 
+    def test_relocation_on_category_change_removes_stale_file(self, tmp_path, monkeypatch):
+        # عند تغيّر التصنيف/العنوان المُشتق بين تشغيلتين لنفس source_url،
+        # يجب نقل الملف لا تكديس نسخة يتيمة في المسار القديم (انظر build_source_index)
+        monkeypatch.chdir(tmp_path)
+        out = str(tmp_path / "laws")
+        common = [
+            "--html", str(FIXTURES / "nezams_sample.html"),
+            "--source", "nezams",
+            "--url", "https://nezams.com/نظام-العمل/",
+            "--out", out,
+        ]
+        assert run(common) == 0
+        old_path = tmp_path / "laws" / "أنظمة العمل والرعاية الاجتماعية" / "نظام العمل.md"
+        assert old_path.exists()
+
+        assert run(common + ["--category", "تصنيف-جديد"]) == 0
+        new_path = tmp_path / "laws" / "تصنيف-جديد" / "نظام العمل.md"
+        assert new_path.exists()
+        assert not old_path.exists()
+        # المجلد القديم يُحذف بعد أن يصبح فارغًا
+        assert not old_path.parent.exists()
+        assert len(list((tmp_path / "laws").rglob("نظام العمل.md"))) == 1
+
     def test_discover_and_report_end_to_end(self, tmp_path, monkeypatch):
         # اكتشاف + تحويل + تقرير في أمر واحد، بلا شبكة (fetcher و discover مُموّهان)
         import scripts.main as main_mod

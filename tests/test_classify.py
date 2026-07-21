@@ -20,6 +20,16 @@ def test_decrees_orders_decisions():
     assert classify_doc_type("قرار مجلس الوزراء رقم (٨٩٣)") == "قرار"
 
 
+def test_decision_after_issuer_prefix():
+    # الصيغة الغالبة لعناوين قرارات qanoonsa: "الجهة: قرار رقم (...)"
+    assert (
+        classify_doc_type("وزارة الطاقة: قرار رقم (٣٩٢٢) نزع ملكية من أجل تعزيز موثوقية الشبكة")
+        == "قرار"
+    )
+    # لا يُطابق عناوين لا تحوي "قرار" بعد نقطتين
+    assert classify_doc_type("نظام العمل: أحكام عامة") == "نظام"
+
+
 def test_agreements_and_standards():
     assert classify_doc_type("اتفاقية عامة للتعاون") == "اتفاقية"
     assert classify_doc_type("معايير احتساب سعر بيع التجزئة المرجعي") == "معايير"
@@ -46,6 +56,16 @@ def test_simplify_category_strips_generic_prefix():
     assert simplify_category("عمل") == "عمل"
     assert simplify_category(None) is None
     assert simplify_category("") is None
+
+
+def test_simplify_category_merges_known_aliases():
+    # صيغ بديلة (خطأ إملائي/همزة/ترتيب) لنفس تصنيف الموقع المصدر تُوحَّد
+    assert simplify_category("أنظمة الزراعة والمياة والثروات الحية") == "أنظمة الزراعة والمياه والثروات الحية"
+    assert simplify_category("أنظمة المواصلات والإتصالات") == "أنظمة المواصلات والاتصالات"
+    assert (
+        simplify_category("الأنظمة السعودية – أنظمة الأمن الداخلي")
+        == "أنظمة الأمن الداخلي والأحوال المدنية والأنظمة الجنائية"
+    )
 
 
 def test_resolve_category_falls_back_to_doc_type():

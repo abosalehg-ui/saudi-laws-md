@@ -51,6 +51,10 @@ def format_document(doc: LawDocument) -> str:
         values = getattr(doc, key)
         if values:
             lines.append(f"{key}: [" + ", ".join(_quote(v) for v in values) + "]")
+    for key in ("etag", "last_modified"):
+        value = getattr(doc, key)
+        if value:
+            lines.append(f"{key}: {_quote(value)}")
     if doc.retrieved_at:
         lines.append(f"retrieved_at: {doc.retrieved_at}")
     lines.append(f"note: {_quote(build_note(doc.source))}")
