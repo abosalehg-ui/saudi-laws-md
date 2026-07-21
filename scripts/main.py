@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from datetime import date, datetime
 from pathlib import Path
@@ -37,6 +38,30 @@ def log_done(url: str, log_path: Path) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("a", encoding="utf-8") as f:
         f.write(url + "\n")
+
+
+_SOURCE_URL_RE = re.compile(r'^source_url:\s*"?(.*?)"?\s*$', re.MULTILINE)
+
+
+def load_done_from_output(out_dir: Path) -> set[str]:
+    """يستنتج الروابط المنجَزة من ملفات المخرجات نفسها (حقل source_url).
+
+    هذه هي حالة الاستئناف الدائمة: بما أن مجلد laws/ يُلتزَم في git بينما
+    logs/ متجاهَل، فإن مسح المخرجات المُلتزَمة يجعل --resume يعمل حتى في
+    جلسة جديدة تستنسخ المستودع من الصفر (كحالة الـ Routine).
+    """
+    done: set[str] = set()
+    if not out_dir.exists():
+        return done
+    for md in out_dir.rglob("*.md"):
+        try:
+            head = "\n".join(md.read_text(encoding="utf-8").splitlines()[:15])
+        except OSError:
+            continue
+        match = _SOURCE_URL_RE.search(head)
+        if match and match.group(1):
+            done.add(match.group(1))
+    return done
 
 
 def load_done(log_path: Path) -> set[str]:
@@ -147,7 +172,10 @@ def run(argv: list[str] | None = None) -> int:
     if not urls:
         parser.error("لم يُمرر أي رابط (استخدم روابط مباشرة أو --from-file أو --discover أو --html)")
 
-    done = load_done(DONE_LOG) if args.resume else set()
+    # حالة الاستئناف = سجل الجلسة (logs/done.txt) ∪ ما هو مُلتزَم في المخرجات
+    done: set[str] = set()
+    if args.resume:
+        done = load_done(DONE_LOG) | load_done_from_output(Path(args.out))
 
     failures = 0
     processed = 0

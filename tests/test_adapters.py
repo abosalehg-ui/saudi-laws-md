@@ -236,6 +236,23 @@ class TestCli:
         assert log.exists()
         assert "bad.html" in log.read_text(encoding="utf-8")
 
+    def test_resume_state_recovered_from_committed_output(self, tmp_path):
+        # حالة الاستئناف الدائمة تُشتق من source_url في ملفات laws/ المُلتزَمة،
+        # فيعمل --resume حتى في جلسة جديدة بلا logs/done.txt
+        from scripts.main import load_done_from_output
+
+        out = tmp_path / "laws" / "عمل"
+        out.mkdir(parents=True)
+        (out / "نظام العمل.md").write_text(
+            '---\ntitle: "نظام العمل"\nsource_url: "https://nezams.com/نظام-العمل/"\n---\n',
+            encoding="utf-8",
+        )
+        (out / "بلا-رابط.md").write_text('---\ntitle: "x"\n---\n', encoding="utf-8")
+        assert load_done_from_output(tmp_path / "laws") == {
+            "https://nezams.com/نظام-العمل/"
+        }
+        assert load_done_from_output(tmp_path / "غير-موجود") == set()
+
     def test_discover_and_report_end_to_end(self, tmp_path, monkeypatch):
         # اكتشاف + تحويل + تقرير في أمر واحد، بلا شبكة (fetcher و discover مُموّهان)
         import scripts.main as main_mod
