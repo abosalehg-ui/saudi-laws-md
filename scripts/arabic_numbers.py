@@ -82,6 +82,34 @@ def _parse_below_hundred(tokens: list[str]) -> int | None:
     return None
 
 
+def _is_ordinal_token(token: str) -> bool:
+    """هل الكلمة جزء من الترقيم الترتيبي (وحدة/عشرة/عشرات/مئات/بعد/رقم)؟"""
+    if re.fullmatch(r"\d+", token):
+        return True
+    stripped = _strip_waw(token)
+    return (
+        stripped in _UNITS
+        or stripped in _TENS
+        or stripped in _HUNDREDS
+        or token in ("عشرة", "عشر", "بعد")
+    )
+
+
+def _leading_ordinal_prefix(tokens: list[str]) -> list[str]:
+    """أطول بادئة من الكلمات الترتيبية؛ يُسقِط عنوان المادة الملحق بالترقيم.
+
+    بعض اللوائح تدمج عنوان المادة في الترويسة ("المادة الثالثة نطاق سريان
+    اللائحة")؛ نأخذ "الثالثة" فقط لاشتقاق الرقم ونتجاهل بقية العنوان.
+    """
+    prefix: list[str] = []
+    for token in tokens:
+        if _is_ordinal_token(token):
+            prefix.append(token)
+        else:
+            break
+    return prefix
+
+
 def parse_article_label(label: str) -> tuple[int | None, bool]:
     """تحويل تسمية مادة إلى (رقم تسلسلي، هل هي مكررة).
 
@@ -95,6 +123,13 @@ def parse_article_label(label: str) -> tuple[int | None, bool]:
     tokens = raw.split()
     if not tokens:
         return None, is_bis
+
+    # إن تعذّر تحليل التسمية كاملة، جرّب البادئة الترتيبية وحدها (عنوان ملحق)
+    prefix = _leading_ordinal_prefix(tokens)
+    if prefix and prefix != tokens:
+        number, _ = parse_article_label(" ".join(prefix))
+        if number is not None:
+            return number, is_bis
 
     if re.fullmatch(r"\d+", tokens[0]):
         return int(tokens[0]), is_bis

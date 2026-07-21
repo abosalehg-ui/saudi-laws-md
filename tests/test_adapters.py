@@ -69,9 +69,22 @@ class TestQanoonsa:
             for art in qanoonsa_doc.articles:
                 assert noise not in art.text
 
-    def test_missing_articles_raises(self):
+    def test_prose_page_becomes_body_not_failure(self):
+        # صفحة بلا مواد لكن بمحتوى نصي تُحوَّل إلى body بدل رفعها كفشل
+        doc = get_adapter("qanoonsa").parse(
+            "<html><h1>عنوان</h1>"
+            '<div class="entry-content"><p>فقرة أولى.</p><p>فقرة ثانية.</p></div></html>',
+            "",
+        )
+        assert doc.articles == []
+        assert "فقرة أولى." in doc.body
+        assert "فقرة ثانية." in doc.body
+
+    def test_truly_empty_page_raises(self):
         with pytest.raises(ParseError):
-            get_adapter("qanoonsa").parse("<html><h1>عنوان</h1><p>بدون مواد</p></html>", "")
+            get_adapter("qanoonsa").parse(
+                '<html><h1>عنوان</h1><div class="entry-content"></div></html>', ""
+            )
 
 
 class TestQanoonsaDecision:
@@ -194,10 +207,23 @@ class TestCli:
         assert out_file.exists()
         content = out_file.read_text(encoding="utf-8")
         assert content.startswith("---\n")
+        assert 'doc_type: "نظام"' in content
         assert "المادة الخامسة" in content
         assert "> **تعديلات المادة:**" in content
         for noise in ("مشاركة المادة", "النص والرابط"):
             assert noise not in content
+
+    def test_done_log_round_trip(self, tmp_path):
+        from scripts.main import load_done, log_done
+
+        log = tmp_path / "done.txt"
+        assert load_done(log) == set()
+        log_done("https://qanoonsa.com/p/1/", log)
+        log_done("https://qanoonsa.com/p/2/", log)
+        assert load_done(log) == {
+            "https://qanoonsa.com/p/1/",
+            "https://qanoonsa.com/p/2/",
+        }
 
     def test_failure_logged_not_fatal(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)

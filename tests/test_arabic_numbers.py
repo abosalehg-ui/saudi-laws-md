@@ -53,6 +53,24 @@ def test_unparseable():
     assert is_bis is False
 
 
+@pytest.mark.parametrize("label,expected", [
+    ("الثالثة نطاق سريان اللائحة", 3),
+    ("الحادية عشرة سجل المرخص لهم", 11),
+    ("العشرون الإعفاء", 20),
+    ("الحادية والعشرون قواعد التراخيص", 21),
+])
+def test_ordinal_with_embedded_subtitle(label, expected):
+    # لوائح تدمج عنوان المادة في الترويسة؛ نشتق الرقم من البادئة الترتيبية
+    number, is_bis = parse_article_label(label)
+    assert number == expected
+    assert is_bis is False
+
+
+def test_subtitle_that_is_not_ordinal_still_none():
+    # عنوان لا يبدأ بترقيم ترتيبي يبقى غير قابل للتحويل
+    assert parse_article_label("نطاق سريان اللائحة") == (None, False)
+
+
 def test_label_regex_in_running_text():
     text = (
         "المادة الحادية عشرة بعد المائة : نص المادة هنا. "

@@ -17,6 +17,7 @@ import re
 from bs4 import BeautifulSoup
 
 from ..arabic_numbers import parse_article_label
+from ..htmlmd import prose_to_markdown
 from ..schema import Article, LawDocument
 from .base import BaseAdapter, ParseError
 
@@ -105,5 +106,16 @@ class QanoonsaAdapter(BaseAdapter):
             doc.articles = clauses
 
         if not doc.articles:
-            raise ParseError("لم يُستخرج أي مادة أو بند من الصفحة")
+            # وثيقة غير مقسّمة لمواد (دليل/معايير/جدول): نحفظ متنها كـ Markdown
+            # بدل رفعها كفشل، مع تجاهل السطور التي استُخرجت إلى حقول وصفية.
+            skip = {"English"}
+            if doc.gazette_ref:
+                skip.add(doc.gazette_ref)
+            for line in intro:
+                if _ISSUED_RE.match(line):
+                    skip.add(line)
+            body = prose_to_markdown(content, skip=frozenset(skip))
+            if not body.strip():
+                raise ParseError("لم يُستخرج أي مادة أو بند أو متن من الصفحة")
+            doc.body = body
         return doc

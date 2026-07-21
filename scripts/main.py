@@ -15,11 +15,13 @@ from pathlib import Path
 
 from .adapters import detect_source, get_adapter
 from .adapters.base import ParseError
+from .classify import classify_doc_type
 from .fetch import Fetcher, FetchError
 from .formatter import format_document, output_path
-from .schema import sequence_warnings
+from .schema import validate_document
 
 FAILED_LOG = Path("logs/failed.txt")
+DONE_LOG = Path("logs/done.txt")
 
 
 def log_failure(target: str, reason: str) -> None:
@@ -28,18 +30,40 @@ def log_failure(target: str, reason: str) -> None:
         f.write(f"{datetime.now().isoformat(timespec='seconds')}\t{target}\t{reason}\n")
 
 
+def log_done(url: str, log_path: Path) -> None:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write(url + "\n")
+
+
+def load_done(log_path: Path) -> set[str]:
+    if not log_path.exists():
+        return set()
+    return {
+        line.strip()
+        for line in log_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    }
+
+
 def process_html(html: str, url: str, source: str, args: argparse.Namespace) -> Path:
     doc = get_adapter(source).parse(html, url)
     doc.retrieved_at = date.today().isoformat()
+    doc.doc_type = classify_doc_type(doc.title, url, doc.is_decision)
     if args.category:
         doc.category = args.category
-    for warning in sequence_warnings(doc):
+    for warning in validate_document(doc):
         print(f"تحذير [{doc.title}]: {warning}", file=sys.stderr)
     path = output_path(doc, Path(args.out))
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(format_document(doc), encoding="utf-8")
-    unit = "بند" if doc.is_decision else "مادة"
-    print(f"{len(doc.articles)} {unit} ← {path}")
+    if doc.body:
+        unit = "وثيقة نصية"
+        count = ""
+    else:
+        unit = "بند" if doc.is_decision else "مادة"
+        count = f"{len(doc.articles)} "
+    print(f"[{doc.doc_type}] {count}{unit} ← {path}")
     return path
 
 
@@ -56,6 +80,16 @@ def run(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", default="laws", help="مجلد المخرجات (افتراضي: laws)")
     parser.add_argument("--category", help="فرض تصنيف محدد بدل المستخرج من الصفحة")
     parser.add_argument("--delay", type=float, default=1.5, help="التأخير بين الطلبات بالثواني")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="تخطّي الروابط المسجّلة في logs/done.txt (لاستئناف الاستيراد عبر جلسات)",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        help="حد أقصى لعدد الروابط الجديدة المعالَجة في هذه الدفعة ثم التوقف",
+    )
     args = parser.parse_args(argv)
 
     if args.html:
@@ -79,9 +113,22 @@ def run(argv: list[str] | None = None) -> int:
     if not urls:
         parser.error("لم يُمرر أي رابط (أو استخدم --html لملف محلي)")
 
+    done = load_done(DONE_LOG) if args.resume else set()
+
     fetcher = Fetcher(delay=args.delay)
     failures = 0
+    processed = 0
+    skipped = 0
     for url in urls:
+        if args.resume and url in done:
+            skipped += 1
+            continue
+        if args.limit is not None and processed >= args.limit:
+            print(
+                f"بلغت الدفعة حدّها ({args.limit})؛ توقّف. المتبقي يُعالَج في تشغيل لاحق.",
+                file=sys.stderr,
+            )
+            break
         source = detect_source(url)
         if not source:
             log_failure(url, "مصدر غير معروف")
@@ -95,6 +142,12 @@ def run(argv: list[str] | None = None) -> int:
             log_failure(url, str(exc))
             print(f"فشل: {url}: {exc}", file=sys.stderr)
             failures += 1
+        else:
+            processed += 1
+            if args.resume:
+                log_done(url, DONE_LOG)
+    if args.resume and skipped:
+        print(f"تُخطّي {skipped} رابطًا مكتملًا سابقًا.", file=sys.stderr)
     return 1 if failures else 0
 
 
