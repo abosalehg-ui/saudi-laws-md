@@ -199,9 +199,10 @@ class TestCli:
             "--out", str(tmp_path / "laws"),
         ])
         assert code == 0
+        # التصنيف الخام يُبسَّط تلقائيًا (تُحذف بادئة "الأنظمة السعودية –")
         out_file = (
             tmp_path / "laws"
-            / "الأنظمة السعودية – أنظمة العمل والرعاية الاجتماعية"
+            / "أنظمة العمل والرعاية الاجتماعية"
             / "نظام العمل.md"
         )
         assert out_file.exists()
@@ -234,3 +235,33 @@ class TestCli:
         log = tmp_path / "logs" / "failed.txt"
         assert log.exists()
         assert "bad.html" in log.read_text(encoding="utf-8")
+
+    def test_discover_and_report_end_to_end(self, tmp_path, monkeypatch):
+        # اكتشاف + تحويل + تقرير في أمر واحد، بلا شبكة (fetcher و discover مُموّهان)
+        import scripts.main as main_mod
+
+        nezams_html = (FIXTURES / "nezams_sample.html").read_text(encoding="utf-8")
+        url = "https://nezams.com/نظام-العمل/"
+
+        class FakeFetcher:
+            def __init__(self, *a, **k):
+                pass
+
+            def get(self, u):
+                return nezams_html
+
+        monkeypatch.setattr(main_mod, "Fetcher", FakeFetcher)
+        monkeypatch.setattr(main_mod, "discover", lambda source, fetcher, **k: [url])
+        monkeypatch.chdir(tmp_path)
+
+        code = run([
+            "--discover", "nezams",
+            "--out", str(tmp_path / "laws"),
+            "--report",
+        ])
+        assert code == 0
+        summary = (tmp_path / "logs" / "summary.md").read_text(encoding="utf-8")
+        assert "نجح: **1**" in summary
+        assert "نظام: 1" in summary
+        # التصنيف المبسّط استُخدم في مسار المخرجات
+        assert (tmp_path / "laws" / "أنظمة العمل والرعاية الاجتماعية" / "نظام العمل.md").exists()

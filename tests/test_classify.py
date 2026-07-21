@@ -1,4 +1,9 @@
-from scripts.classify import VALID_TYPES, classify_doc_type
+from scripts.classify import (
+    VALID_TYPES,
+    classify_doc_type,
+    resolve_category,
+    simplify_category,
+)
 
 
 def test_law_and_regulation_titles():
@@ -31,6 +36,25 @@ def test_decision_fallback_and_other():
     assert classify_doc_type("الموافقة على مشروع", is_decision=True) == "قرار"
     # لا نمط ولا قرار → أخرى
     assert classify_doc_type("إعلان عام للجمهور") == "أخرى"
+
+
+def test_simplify_category_strips_generic_prefix():
+    assert (
+        simplify_category("الأنظمة السعودية – أنظمة العمل والرعاية الاجتماعية")
+        == "أنظمة العمل والرعاية الاجتماعية"
+    )
+    assert simplify_category("عمل") == "عمل"
+    assert simplify_category(None) is None
+    assert simplify_category("") is None
+
+
+def test_resolve_category_falls_back_to_doc_type():
+    # لا تصنيف من الصفحة → يُستخدم نوع الوثيقة بدل "غير-مصنف"
+    assert resolve_category(None, "لائحة") == "لائحة"
+    # تصنيف موجود → يُبسَّط ويُستخدم
+    assert resolve_category("الأنظمة السعودية – تجاري", "نظام") == "تجاري"
+    # لا تصنيف ونوع "أخرى" → None (يبقى غير-مصنف)
+    assert resolve_category(None, "أخرى") is None
 
 
 def test_all_outputs_are_valid_types():

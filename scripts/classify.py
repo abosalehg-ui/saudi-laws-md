@@ -31,6 +31,40 @@ VALID_TYPES = {
 }
 
 
+# بادئة عامة في تصنيف nezams الخام تُحذف لأنها لا تميّز شيئًا
+_CATEGORY_PREFIX_RE = re.compile(r"^الأنظمة\s+السعودية\s*[–—-]\s*")
+_CATEGORY_SPLIT_RE = re.compile(r"\s*[–—]\s*")
+
+
+def simplify_category(raw: str | None) -> str | None:
+    """يبسّط تصنيف nezams الخام الطويل إلى مجال مقروء.
+
+    مثال: "الأنظمة السعودية – أنظمة العمل والرعاية الاجتماعية" → "أنظمة
+    العمل والرعاية الاجتماعية". يعيد None لمدخل فارغ حتى يتراجع النداء إلى
+    بديل (نوع الوثيقة).
+    """
+    if not raw:
+        return None
+    cleaned = _CATEGORY_PREFIX_RE.sub("", raw).strip()
+    # بعد حذف البادئة قد تبقى أجزاء مفصولة بشرطة؛ نأخذ أول جزء دلالي
+    parts = [p.strip() for p in _CATEGORY_SPLIT_RE.split(cleaned) if p.strip()]
+    result = parts[0] if parts else cleaned
+    return result.rstrip(".").strip() or None
+
+
+def resolve_category(raw: str | None, doc_type: str | None) -> str | None:
+    """التصنيف النهائي: التصنيف المبسّط إن وُجد، وإلا نوع الوثيقة كبديل.
+
+    يقلّل ما يتكدّس في مجلد "غير-مصنف" (خاصة صفحات qanoonsa بلا تصنيف).
+    """
+    simplified = simplify_category(raw)
+    if simplified:
+        return simplified
+    if doc_type and doc_type != "أخرى":
+        return doc_type
+    return None
+
+
 def classify_doc_type(title: str, url: str = "", is_decision: bool = False) -> str:
     """يرجع نوع الوثيقة من عنوانها (وربما رابطها).
 
