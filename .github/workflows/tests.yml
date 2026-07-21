@@ -14,7 +14,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e ".[dev]"
-      - run: pytest
+      - run: python -m pytest
 
   lint:
     runs-on: ubuntu-latest
