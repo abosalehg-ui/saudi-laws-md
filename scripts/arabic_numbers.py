@@ -167,11 +167,8 @@ for _vocab in (_UNITS, _TENS, _HUNDREDS):
         _ALL_WORDS |= _spelling_variants(_w)
 _ALL_WORDS |= {"عشرة", "عشر", "بعد", "مكرر", "مكررا", "مكرراً"}
 
-_TOKEN = r"(?:و?(?:%s)|[0-9٠-٩]+)" % "|".join(
-    sorted(_ALL_WORDS, key=len, reverse=True)
-)
+_ALL_WORDS_PATTERN = "|".join(sorted(_ALL_WORDS, key=len, reverse=True))
+_TOKEN = rf"(?:و?(?:{_ALL_WORDS_PATTERN})|[0-9٠-٩]+)"
 
 # يطابق "المادة <تسمية ترتيبية>" في نص متصل، ويلتقط التسمية كاملة
-ARTICLE_LABEL_RE = re.compile(
-    r"المادة\s+(%s(?:\s+%s)*)" % (_TOKEN, _TOKEN)
-)
+ARTICLE_LABEL_RE = re.compile(rf"المادة\s+({_TOKEN}(?:\s+{_TOKEN})*)")

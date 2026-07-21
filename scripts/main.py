@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 
@@ -41,6 +42,46 @@ def log_done(url: str, log_path: Path) -> None:
 
 
 _SOURCE_URL_RE = re.compile(r'^source_url:\s*"?(.*?)"?\s*$', re.MULTILINE)
+_ETAG_RE = re.compile(r'^etag:\s*"?(.*?)"?\s*$', re.MULTILINE)
+_LAST_MODIFIED_RE = re.compile(r'^last_modified:\s*"?(.*?)"?\s*$', re.MULTILINE)
+_HEAD_LINES = 25  # هامش يكفي كل حقول الـ front matter الحالية حتى retrieved_at/note
+
+
+@dataclass
+class OutputEntry:
+    """ما يُستنتج من ملف مخرجات موجود لرابط مصدر واحد."""
+
+    path: Path
+    etag: str | None = None
+    last_modified: str | None = None
+
+
+def build_source_index(out_dir: Path) -> dict[str, OutputEntry]:
+    """يبني فهرس source_url ← بيانات الملف الحالي لكل مخرجات out_dir.
+
+    يُستخدم لغرضين: تثبيت هوية الوثيقة على source_url بدل مسارها المُشتق
+    (عنوان/تصنيف)، إذ يتغيّر هذا المسار مع تطوّر منطق التصنيف — وبدون هذا
+    الفهرس تتراكم نسخ يتيمة في مسارات قديمة (انظر process_html) — وتزويد
+    الجلب الشرطي (--check-updates) بآخر ETag/Last-Modified معروفين.
+    """
+    index: dict[str, OutputEntry] = {}
+    if not out_dir.exists():
+        return index
+    for md in out_dir.rglob("*.md"):
+        try:
+            head = "\n".join(md.read_text(encoding="utf-8").splitlines()[:_HEAD_LINES])
+        except OSError:
+            continue
+        match = _SOURCE_URL_RE.search(head)
+        if match and match.group(1):
+            etag_m = _ETAG_RE.search(head)
+            lm_m = _LAST_MODIFIED_RE.search(head)
+            index[match.group(1)] = OutputEntry(
+                path=md,
+                etag=etag_m.group(1) if etag_m and etag_m.group(1) else None,
+                last_modified=lm_m.group(1) if lm_m and lm_m.group(1) else None,
+            )
+    return index
 
 
 def load_done_from_output(out_dir: Path) -> set[str]:
@@ -50,18 +91,7 @@ def load_done_from_output(out_dir: Path) -> set[str]:
     logs/ متجاهَل، فإن مسح المخرجات المُلتزَمة يجعل --resume يعمل حتى في
     جلسة جديدة تستنسخ المستودع من الصفر (كحالة الـ Routine).
     """
-    done: set[str] = set()
-    if not out_dir.exists():
-        return done
-    for md in out_dir.rglob("*.md"):
-        try:
-            head = "\n".join(md.read_text(encoding="utf-8").splitlines()[:15])
-        except OSError:
-            continue
-        match = _SOURCE_URL_RE.search(head)
-        if match and match.group(1):
-            done.add(match.group(1))
-    return done
+    return set(build_source_index(out_dir).keys())
 
 
 def load_done(log_path: Path) -> set[str]:
@@ -74,19 +104,51 @@ def load_done(log_path: Path) -> set[str]:
     }
 
 
+def _prune_empty_dirs(start: Path, root: Path) -> None:
+    """يحذف start وأسلافه طالما فارغين، دون تجاوز root."""
+    current = start
+    try:
+        root = root.resolve()
+        current = current.resolve()
+    except OSError:
+        return
+    while current != root and root in current.parents:
+        try:
+            current.rmdir()
+        except OSError:
+            break
+        current = current.parent
+
+
 def process_html(
-    html: str, url: str, source: str, args: argparse.Namespace
+    html: str,
+    url: str,
+    source: str,
+    args: argparse.Namespace,
+    existing: dict[str, OutputEntry] | None = None,
+    etag: str | None = None,
+    last_modified: str | None = None,
 ) -> tuple[LawDocument, list[str]]:
     doc = get_adapter(source).parse(html, url)
     doc.retrieved_at = date.today().isoformat()
     doc.doc_type = classify_doc_type(doc.title, url, doc.is_decision)
     doc.category = args.category or resolve_category(doc.category, doc.doc_type)
+    doc.etag = etag
+    doc.last_modified = last_modified
     warnings = validate_document(doc)
     for warning in warnings:
         print(f"تحذير [{doc.title}]: {warning}", file=sys.stderr)
-    path = output_path(doc, Path(args.out))
+    out_dir = Path(args.out)
+    path = output_path(doc, out_dir)
+    if existing is not None:
+        old_entry = existing.get(doc.source_url)
+        if old_entry is not None and old_entry.path != path and old_entry.path.exists():
+            old_entry.path.unlink()
+            _prune_empty_dirs(old_entry.path.parent, out_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(format_document(doc), encoding="utf-8")
+    if existing is not None:
+        existing[doc.source_url] = OutputEntry(path=path, etag=doc.etag, last_modified=doc.last_modified)
     if doc.body:
         unit = "وثيقة نصية"
         count = ""
@@ -136,15 +198,24 @@ def run(argv: list[str] | None = None) -> int:
         const=str(SUMMARY_FILE),
         help="كتابة تقرير ملخّص للتشغيلة (افتراضيًا logs/summary.md)",
     )
+    parser.add_argument(
+        "--check-updates",
+        action="store_true",
+        help=(
+            "لروابط سبق استيرادها: جلب شرطي عبر ETag/Last-Modified، وتخطّي "
+            "إعادة التحليل والكتابة إن لم يتغيّر المحتوى منذ آخر جلب"
+        ),
+    )
     args = parser.parse_args(argv)
 
     if args.html:
         source = args.source or detect_source(args.url)
         if not source:
             parser.error("مع ‎--html يجب تحديد ‎--source أو ‎--url برابط معروف المصدر")
+        existing = build_source_index(Path(args.out))
         try:
             process_html(
-                Path(args.html).read_text(encoding="utf-8"), args.url, source, args
+                Path(args.html).read_text(encoding="utf-8"), args.url, source, args, existing
             )
         except (ParseError, OSError) as exc:
             log_failure(args.html, str(exc))
@@ -172,14 +243,17 @@ def run(argv: list[str] | None = None) -> int:
     if not urls:
         parser.error("لم يُمرر أي رابط (استخدم روابط مباشرة أو --from-file أو --discover أو --html)")
 
-    # حالة الاستئناف = سجل الجلسة (logs/done.txt) ∪ ما هو مُلتزَم في المخرجات
+    # فهرس source_url ← مسار الملف الحالي، يُبنى مرة واحدة لكل التشغيلة:
+    # يُستخدم لتثبيت هوية الوثيقة (process_html) ولاشتقاق حالة الاستئناف الدائمة
+    existing = build_source_index(Path(args.out))
     done: set[str] = set()
     if args.resume:
-        done = load_done(DONE_LOG) | load_done_from_output(Path(args.out))
+        done = load_done(DONE_LOG) | set(existing.keys())
 
     failures = 0
     processed = 0
     skipped = 0
+    unchanged = 0
     results: list[RunResult] = []
     for url in urls:
         if args.resume and url in done:
@@ -199,8 +273,24 @@ def run(argv: list[str] | None = None) -> int:
             results.append(RunResult(url=url, status="failed", reason="مصدر غير معروف"))
             continue
         try:
-            html = fetcher.get(url)
-            doc, warnings = process_html(html, url, source, args)
+            prior = existing.get(url) if args.check_updates else None
+            if prior is not None:
+                result = fetcher.get_conditional(url, etag=prior.etag, last_modified=prior.last_modified)
+                if result.not_modified:
+                    processed += 1
+                    unchanged += 1
+                    print(f"بلا تغيير: {url}")
+                    results.append(RunResult(url=url, status="unchanged"))
+                    if args.resume:
+                        log_done(url, DONE_LOG)
+                    continue
+                doc, warnings = process_html(
+                    result.text, url, source, args, existing,
+                    etag=result.etag, last_modified=result.last_modified,
+                )
+            else:
+                html = fetcher.get(url)
+                doc, warnings = process_html(html, url, source, args, existing)
         except (FetchError, ParseError, OSError) as exc:
             log_failure(url, str(exc))
             print(f"فشل: {url}: {exc}", file=sys.stderr)
@@ -216,6 +306,8 @@ def run(argv: list[str] | None = None) -> int:
                 log_done(url, DONE_LOG)
     if args.resume and skipped:
         print(f"تُخطّي {skipped} رابطًا مكتملًا سابقًا.", file=sys.stderr)
+    if args.check_updates and unchanged:
+        print(f"بلا تغيير منذ آخر جلب: {unchanged}", file=sys.stderr)
     if args.report:
         report_path = Path(args.report)
         report_path.parent.mkdir(parents=True, exist_ok=True)

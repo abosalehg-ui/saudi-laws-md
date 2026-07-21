@@ -1,6 +1,6 @@
 from urllib.parse import urlparse
 
-from .base import BaseAdapter, ParseError
+from .base import BaseAdapter
 
 
 def detect_source(url: str) -> str | None:

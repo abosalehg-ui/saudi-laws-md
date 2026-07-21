@@ -140,6 +140,15 @@ def test_validate_document_flags_noise_empty_and_no_content():
     assert any("بلا محتوى" in w for w in validate_document(empty_doc))
 
 
+def test_validate_document_flags_spreadsheet_error_title():
+    doc = LawDocument(title="#REF!", source="qanoonsa", source_url="", body="متن سليم.")
+    warnings = validate_document(doc)
+    assert any("خطأ صيغة جدول بيانات" in w for w in warnings)
+
+    ok_doc = LawDocument(title="نظام العمل", source="qanoonsa", source_url="", body="متن سليم.")
+    assert validate_document(ok_doc) == []
+
+
 def test_validate_document_accepts_prose_body():
     doc = LawDocument(
         title="دليل",
