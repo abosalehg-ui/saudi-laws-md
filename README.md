@@ -2,7 +2,7 @@
 
 نصوص الأنظمة واللوائح السعودية بصيغة Markdown نظيفة، منظمة حسب المجال، للبحث والاستخدام في أدوات المطورين والباحثين.
 
-المستودع: https://github.com/abosalehg-ui/saudi-laws-md
+الانظمة: https://github.com/abosalehg-ui/saudi-laws-md/tree/main/laws
 
 ## ⚠️ تنويه مهم
 
