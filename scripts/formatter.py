@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from .frontmatter import quote as _quote
 from .schema import LawDocument
 
 _SOURCE_SITES = {
@@ -15,6 +16,22 @@ _SOURCE_SITES = {
 UNCATEGORIZED = "غير-مصنف"
 
 
+def prune_empty_dirs(start: Path, root: Path) -> None:
+    """يحذف start وأسلافه طالما فارغين، دون تجاوز root (أداة مسارات مشتركة)."""
+    current = start
+    try:
+        root = root.resolve()
+        current = current.resolve()
+    except OSError:
+        return
+    while current != root and root in current.parents:
+        try:
+            current.rmdir()
+        except OSError:
+            break
+        current = current.parent
+
+
 def build_note(source: str) -> str:
     site = _SOURCE_SITES.get(source, source)
     return (
@@ -22,10 +39,6 @@ def build_note(source: str) -> str:
         "لا يُعتد بها كمصدر رسمي؛ للتحقق يُرجى الرجوع إلى جريدة أم القرى (uqn.gov.sa) "
         "وبوابة الأنظمة السعودية لدى هيئة الخبراء (laws.boe.gov.sa)."
     )
-
-
-def _quote(value: str) -> str:
-    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def format_document(doc: LawDocument) -> str:

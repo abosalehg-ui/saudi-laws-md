@@ -96,7 +96,10 @@ class Fetcher:
                 if response.status_code in extra_ok_status:
                     return response
                 if response.status_code not in _RETRYABLE_STATUS:
-                    response.raise_for_status()
+                    # خطأ نهائي غير قابل للإعادة (4xx/5xx غير المدرجة): يُلَفّ
+                    # في FetchError لتوحيد عقد الأخطاء (بدل تسريب HTTPError)
+                    if response.status_code >= 400:
+                        raise FetchError(f"HTTP {response.status_code} لـ {url}")
                     if not response.encoding or response.encoding.lower() == "iso-8859-1":
                         response.encoding = "utf-8"
                     return response

@@ -21,7 +21,7 @@ from .adapters.base import ParseError
 from .classify import classify_doc_type, resolve_category
 from .discover import discover
 from .fetch import Fetcher, FetchError
-from .formatter import format_document, output_path, sanitize_filename
+from .formatter import format_document, output_path, prune_empty_dirs, sanitize_filename
 from .report import RunResult, build_summary
 from .schema import LawDocument, validate_document
 from .urls import canonical_url
@@ -46,18 +46,34 @@ def log_done(url: str, log_path: Path) -> None:
 _SOURCE_URL_RE = re.compile(r'^source_url:\s*"?(.*?)"?\s*$', re.MULTILINE)
 _ETAG_RE = re.compile(r'^etag:\s*"?(.*?)"?\s*$', re.MULTILINE)
 _LAST_MODIFIED_RE = re.compile(r'^last_modified:\s*"?(.*?)"?\s*$', re.MULTILINE)
-_HEAD_LINES = 25  # هامش يكفي كل حقول الـ front matter الحالية حتى retrieved_at/note
+# حدّ أمان لعدد أسطر الـ front matter (يمنع قراءة ملف ضخم بلا فاصل ثانٍ)
+_MAX_FRONT_MATTER_LINES = 100
 # عنوان مادة في متن Markdown (## أو ### المادة ...)، لكشف أن ملفًا قائمًا يحوي مواد
 _ARTICLE_HEADING_MD_RE = re.compile(r"^#{2,3}\s*المادة\s", re.MULTILINE)
 
 
-def _read_source_url(path: Path) -> str | None:
-    """يقرأ source_url من رأس ملف مخرجات موجود (أو None إن تعذّر)."""
+def _front_matter_head(path: Path) -> str:
+    """يقرأ كتلة الـ front matter فقط (حتى الفاصل ``---`` الثاني)، بلا قراءة
+    كامل الملف. حدٌّ بنيوي لا عددي (يزيل الرقم السحري السابق)، ويوفّر قراءة
+    آلاف الملفات الكاملة في كل تشغيلة (كان يُقرأ الملف كله ثم يُقتطع)."""
+    lines: list[str] = []
     try:
-        head = "\n".join(path.read_text(encoding="utf-8").splitlines()[:_HEAD_LINES])
+        with path.open(encoding="utf-8") as f:
+            first = f.readline()
+            if first.rstrip("\n") != "---":
+                return ""  # لا front matter
+            for line in f:
+                if line.rstrip("\n") == "---" or len(lines) >= _MAX_FRONT_MATTER_LINES:
+                    break
+                lines.append(line)
     except OSError:
-        return None
-    match = _SOURCE_URL_RE.search(head)
+        return ""
+    return "".join(lines)
+
+
+def _read_source_url(path: Path) -> str | None:
+    """يقرأ source_url من كتلة front matter لملف مخرجات موجود (أو None)."""
+    match = _SOURCE_URL_RE.search(_front_matter_head(path))
     return match.group(1) if match and match.group(1) else None
 
 
@@ -118,10 +134,7 @@ def build_source_index(out_dir: Path) -> dict[str, OutputEntry]:
     if not out_dir.exists():
         return index
     for md in out_dir.rglob("*.md"):
-        try:
-            head = "\n".join(md.read_text(encoding="utf-8").splitlines()[:_HEAD_LINES])
-        except OSError:
-            continue
+        head = _front_matter_head(md)
         match = _SOURCE_URL_RE.search(head)
         if match and match.group(1):
             etag_m = _ETAG_RE.search(head)
@@ -152,22 +165,6 @@ def load_done(log_path: Path) -> set[str]:
         for line in log_path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     }
-
-
-def _prune_empty_dirs(start: Path, root: Path) -> None:
-    """يحذف start وأسلافه طالما فارغين، دون تجاوز root."""
-    current = start
-    try:
-        root = root.resolve()
-        current = current.resolve()
-    except OSError:
-        return
-    while current != root and root in current.parents:
-        try:
-            current.rmdir()
-        except OSError:
-            break
-        current = current.parent
 
 
 def process_html(
@@ -207,7 +204,7 @@ def process_html(
         old_entry = existing.get(doc.source_url)
         if old_entry is not None and old_entry.path != path and old_entry.path.exists():
             old_entry.path.unlink()
-            _prune_empty_dirs(old_entry.path.parent, out_dir)
+            prune_empty_dirs(old_entry.path.parent, out_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(format_document(doc), encoding="utf-8")
     if existing is not None:

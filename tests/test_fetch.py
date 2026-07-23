@@ -79,7 +79,8 @@ def test_non_retryable_status_raises_immediately_without_retry(monkeypatch):
     monkeypatch.setattr(
         fetcher.session, "get", lambda url, timeout, headers=None: calls.append(1) or FakeResponse(404)
     )
-    with pytest.raises(requests.HTTPError):
+    # يُلَفّ الخطأ النهائي في FetchError (عقد أخطاء موحّد) بدل HTTPError الخام
+    with pytest.raises(FetchError):
         fetcher.get("https://nezams.com/x/")
     assert len(calls) == 1  # لا إعادة محاولة لخطأ غير قابل للإعادة
 

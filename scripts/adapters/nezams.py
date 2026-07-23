@@ -54,6 +54,8 @@ def _clean_line(value: str) -> str:
 
 class NezamsAdapter(BaseAdapter):
     source = "nezams"
+    hosts = ("nezams.com",)
+    sitemap_index = "https://nezams.com/sitemap_index.xml"
 
     def parse(self, html: str, url: str) -> LawDocument:
         soup = BeautifulSoup(html, "lxml")

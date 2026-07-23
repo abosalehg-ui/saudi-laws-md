@@ -16,14 +16,13 @@ import re
 import sys
 from urllib.parse import urlparse
 
+from .adapters import ADAPTERS
 from .fetch import Fetcher, FetchError
 from .urls import canonical_url
 
-SITE_INDEX = {
-    "qanoonsa": "https://qanoonsa.com/wp-sitemap.xml",
-    "nezams": "https://nezams.com/sitemap_index.xml",
-}
-_ALLOWED_HOSTS = {"qanoonsa.com", "nezams.com"}
+# مشتقّة من سجل المصادر (adapters/__init__)، لا مكرّرة يدويًا
+SITE_INDEX = {a.source: a.sitemap_index for a in ADAPTERS if a.sitemap_index}
+_ALLOWED_HOSTS = {h for a in ADAPTERS for h in a.hosts}
 
 # خرائط فرعية للتصنيفات/الوسوم/المستخدمين لا تحوي وثائق — تُستبعَد
 _SKIP_SUBMAP_RE = re.compile(r"(taxonom|category|post_tag|-tag|author|user)", re.I)

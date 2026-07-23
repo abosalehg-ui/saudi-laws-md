@@ -68,11 +68,13 @@ def sequence_warnings(doc: LawDocument) -> list[str]:
     return warnings
 
 
-# ترتيب بنود القرار (أولا/ثانيا/…) لكشف بند بلا سابقه (مثل «ثانيا» بلا «أولا»)
-_CLAUSE_ORDER = (
+# ترتيب بنود القرار (أولا/ثانيا/…)، مصدر وحيد يُبنى منه كل ما يطابق البنود
+# (كشف القرار في الـ adapters، تسلسل البنود هنا) تفاديًا لتكرار القائمة
+CLAUSE_NAMES = (
     "أولا", "ثانيا", "ثالثا", "رابعا", "خامسا",
     "سادسا", "سابعا", "ثامنا", "تاسعا", "عاشرا",
 )
+_CLAUSE_ORDER = CLAUSE_NAMES  # اسم داخلي سابق (للوضوح في دوال هذا الملف)
 _CLAUSE_RANK = {name: i for i, name in enumerate(_CLAUSE_ORDER)}
 
 
