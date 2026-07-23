@@ -56,6 +56,8 @@ def test_simplify_category_strips_generic_prefix():
     assert simplify_category("عمل") == "عمل"
     assert simplify_category(None) is None
     assert simplify_category("") is None
+    # التصنيف العام وحده (بلا مجال بعد الشرطة) يُعامل كغياب تصنيف
+    assert simplify_category("الأنظمة السعودية") is None
 
 
 def test_simplify_category_merges_known_aliases():
@@ -75,6 +77,9 @@ def test_resolve_category_falls_back_to_doc_type():
     assert resolve_category("الأنظمة السعودية – تجاري", "نظام") == "تجاري"
     # لا تصنيف ونوع "أخرى" → None (يبقى غير-مصنف)
     assert resolve_category(None, "أخرى") is None
+    # نوع "نظام" كمجلد يُوحَّد مع "التنظيمات" (قرار المالك: تصنيف واحد)
+    assert resolve_category(None, "نظام") == "التنظيمات"
+    assert resolve_category("نظام", "نظام") == "التنظيمات"
 
 
 def test_all_outputs_are_valid_types():
