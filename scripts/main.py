@@ -14,13 +14,14 @@ import sys
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 from .adapters import detect_source, get_adapter
 from .adapters.base import ParseError
 from .classify import classify_doc_type, resolve_category
 from .discover import discover
 from .fetch import Fetcher, FetchError
-from .formatter import format_document, output_path
+from .formatter import format_document, output_path, sanitize_filename
 from .report import RunResult, build_summary
 from .schema import LawDocument, validate_document
 
@@ -45,6 +46,54 @@ _SOURCE_URL_RE = re.compile(r'^source_url:\s*"?(.*?)"?\s*$', re.MULTILINE)
 _ETAG_RE = re.compile(r'^etag:\s*"?(.*?)"?\s*$', re.MULTILINE)
 _LAST_MODIFIED_RE = re.compile(r'^last_modified:\s*"?(.*?)"?\s*$', re.MULTILINE)
 _HEAD_LINES = 25  # هامش يكفي كل حقول الـ front matter الحالية حتى retrieved_at/note
+# عنوان مادة في متن Markdown (## أو ### المادة ...)، لكشف أن ملفًا قائمًا يحوي مواد
+_ARTICLE_HEADING_MD_RE = re.compile(r"^#{2,3}\s*المادة\s", re.MULTILINE)
+
+
+def _read_source_url(path: Path) -> str | None:
+    """يقرأ source_url من رأس ملف مخرجات موجود (أو None إن تعذّر)."""
+    try:
+        head = "\n".join(path.read_text(encoding="utf-8").splitlines()[:_HEAD_LINES])
+    except OSError:
+        return None
+    match = _SOURCE_URL_RE.search(head)
+    return match.group(1) if match and match.group(1) else None
+
+
+def _file_has_articles(path: Path) -> bool:
+    try:
+        return bool(_ARTICLE_HEADING_MD_RE.search(path.read_text(encoding="utf-8")))
+    except OSError:
+        return False
+
+
+def _disambiguate_path(path: Path, url: str) -> Path:
+    """يشتق اسمًا مميزًا عند تصادم المسار مع وثيقة أخرى، من آخر مقطع في الرابط.
+
+    لـ qanoonsa هذا معرّف المنشور (p/516403 ← 516403)، ولـ nezams اسم
+    المقالة (slug) — كلاهما فريد لكل وثيقة، فالنتيجة حتمية وقابلة للتكرار.
+    """
+    segments = [s for s in urlparse(url).path.split("/") if s]
+    disc = unquote(segments[-1]) if segments else "نسخة"
+    return path.with_name(sanitize_filename(f"{path.stem} ({disc})") + path.suffix)
+
+
+def _resolve_collision(path: Path, source_url: str) -> Path:
+    """يعيد مسارًا آمنًا للكتابة: يتجنّب طمس وثيقة أخرى تتصادم في الاسم.
+
+    الكتابة فوق ملف قائم مسموحة فقط إن كان لنفس source_url (تحديث في مكانه).
+    إن كان لوثيقة مختلفة (تصادم عنوان بعد الاقتطاع، أو نفس العنوان من
+    المصدرين) يُشتق اسم مميز؛ ويُكرَّر عند تصادم نادر متتالٍ.
+    """
+    if not path.exists() or _read_source_url(path) == source_url:
+        return path
+    candidate = _disambiguate_path(path, source_url)
+    counter = 2
+    while candidate.exists() and _read_source_url(candidate) != source_url:
+        stem = _disambiguate_path(path, source_url).stem
+        candidate = candidate.with_name(sanitize_filename(f"{stem} {counter}") + path.suffix)
+        counter += 1
+    return candidate
 
 
 @dataclass
@@ -130,6 +179,15 @@ def process_html(
     last_modified: str | None = None,
 ) -> tuple[LawDocument, list[str]]:
     doc = get_adapter(source).parse(html, url)
+    # حارس M-1: ناتج نثري بلا مواد سيطمس ملفًا قائمًا يحوي مواد لنفس الرابط
+    # مؤشّر قوي على فشل التقطيع (تغيّر بنية المصدر) لا وثيقة نثرية جديدة —
+    # نرفض الكتابة ونسجّله فشلًا بدل تخريب الملف الجيد بصمت
+    if existing is not None and doc.body and not doc.articles:
+        prior = existing.get(doc.source_url)
+        if prior is not None and prior.path.exists() and _file_has_articles(prior.path):
+            raise ParseError(
+                "ناتج نثري بلا مواد سيطمس ملفًا قائمًا يحوي مواد (يُحتمل تغيّر بنية المصدر)"
+            )
     doc.retrieved_at = date.today().isoformat()
     doc.doc_type = classify_doc_type(doc.title, url, doc.is_decision)
     doc.category = args.category or resolve_category(doc.category, doc.doc_type)
@@ -140,6 +198,10 @@ def process_html(
         print(f"تحذير [{doc.title}]: {warning}", file=sys.stderr)
     out_dir = Path(args.out)
     path = output_path(doc, out_dir)
+    # حارس M-3: لا تكتب فوق وثيقة مختلفة تتصادم في المسار (اقتطاع الاسم أو
+    # نفس العنوان من المصدرين). يُحسم قبل نقل الملف القديم حتى تبقى العملية
+    # idempotent: الوجهة المميّزة نفسها تُختار في كل تشغيل.
+    path = _resolve_collision(path, doc.source_url)
     if existing is not None:
         old_entry = existing.get(doc.source_url)
         if old_entry is not None and old_entry.path != path and old_entry.path.exists():

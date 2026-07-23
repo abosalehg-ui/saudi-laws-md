@@ -47,3 +47,14 @@ def test_prose_does_not_duplicate_paragraphs_nested_in_tables():
     ).find("div")
     md = prose_to_markdown(content)
     assert md.count("نص داخل الخلية") == 1
+
+
+def test_prose_does_not_duplicate_paragraphs_nested_in_li_or_blockquote():
+    # p داخل li/blockquote يُلتقط نصه ضمن حاويه؛ يجب ألا يتكرر (M-4)
+    content = _soup(
+        "<div><ul><li><p>بند داخل قائمة</p></li></ul>"
+        "<blockquote><p>نص مقتبس</p></blockquote></div>"
+    ).find("div")
+    md = prose_to_markdown(content)
+    assert md.count("بند داخل قائمة") == 1
+    assert md.count("نص مقتبس") == 1

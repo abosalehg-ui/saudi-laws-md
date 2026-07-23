@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from .arabic_numbers import ARTICLE_LABEL_RE
+
 
 @dataclass
 class Article:
@@ -96,6 +98,16 @@ def validate_document(doc: LawDocument) -> list[str]:
     has_content = bool(doc.articles) or bool((doc.body or "").strip())
     if not has_content:
         warnings.append("الوثيقة بلا محتوى: لا مواد ولا متن")
+
+    # حارس بنيوي: وثيقة حُفظت متنًا نثريًا (body) لكنها تحوي عدة عناوين
+    # "المادة ..." تعني غالبًا فشلًا في تقطيع المواد — مؤشر مبكر على تغيّر
+    # بنية HTML للموقع المصدر، لا وثيقة نثرية بطبيعتها
+    if doc.body and not doc.articles:
+        if len(ARTICLE_LABEL_RE.findall(doc.body)) >= 2:
+            warnings.append(
+                "وثيقة نثرية تحوي عدة نصوص «المادة …»؛ يُحتمل فشل تقطيع المواد "
+                "(تغيّر بنية المصدر؟)"
+            )
 
     haystacks = [a.text for a in doc.articles]
     if doc.body:

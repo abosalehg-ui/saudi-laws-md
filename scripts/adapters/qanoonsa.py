@@ -21,6 +21,10 @@ from ..htmlmd import prose_to_markdown
 from ..schema import Article, LawDocument
 from .base import BaseAdapter, ParseError
 
+# بقايا حقول CMS ثنائية اللغة تتسرّب أحيانًا إلى بداية العنوان أو الفقرة
+# ("Arabic Full Name: …"، "English صدر في: …") — تُزال قبل أي معالجة
+_CMS_LABEL_PREFIX_RE = re.compile(r"^(?:Arabic|English)(?:\s+Full\s+Name)?\s*:?\s+")
+
 _ARTICLE_HEADING_RE = re.compile(r"^المادة\s+(.+)$")
 _CLAUSE_HEADING_RE = re.compile(
     r"^(أولا|ثانيا|ثالثا|رابعا|خامسا|سادسا|سابعا|ثامنا|تاسعا|عاشرا)ً?$"
@@ -41,6 +45,7 @@ class QanoonsaAdapter(BaseAdapter):
         if h1 is None:
             raise ParseError("لم يُعثر على عنوان الصفحة (h1)")
         title = " ".join(h1.get_text(" ", strip=True).split())
+        title = _CMS_LABEL_PREFIX_RE.sub("", title)
 
         for tag in soup(["script", "style", "nav", "header", "footer", "aside", "form"]):
             tag.decompose()
@@ -55,7 +60,13 @@ class QanoonsaAdapter(BaseAdapter):
         intro: list[str] = []
 
         for el in content.find_all(["h2", "h3", "h4", "p", "li", "blockquote"]):
+            # عنصر متداخل داخل li/blockquote يُلتقط نصه كاملًا ضمن حاويه؛
+            # معالجته ثانيةً هنا تُكرّر النص في المتن (نمط مطابق لتجاهل
+            # عناصر الجدول في htmlmd.prose_to_markdown)
+            if el.find_parent(["li", "blockquote"]) is not None:
+                continue
             text = " ".join(el.get_text(" ", strip=True).split())
+            text = _CMS_LABEL_PREFIX_RE.sub("", text)
             if not text:
                 continue
             if el.name in ("h2", "h3", "h4"):

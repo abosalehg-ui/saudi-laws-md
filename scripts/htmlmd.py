@@ -51,8 +51,9 @@ def prose_to_markdown(
             if md:
                 blocks.append(md)
             continue
-        # عناصر مُتداخلة داخل جدول يعالجها مُحوِّل الجدول؛ نتجنّب تكرارها
-        if el.find_parent("table") is not None:
+        # عناصر مُتداخلة داخل جدول أو li/blockquote يُلتقط نصها ضمن حاويها؛
+        # نتجنّب تكرارها (الجدول يعالجه محوّله، والحاوي يُخرِج نصه كاملًا)
+        if el.find_parent(["table", "li", "blockquote"]) is not None:
             continue
         text = " ".join(el.get_text(" ", strip=True).split())
         if not text or text in skip:
