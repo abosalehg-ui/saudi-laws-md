@@ -52,8 +52,8 @@ def test_reclassifies_decision_title_after_issuer_prefix(tmp_path):
 
 def test_no_change_when_already_correct(tmp_path):
     out = tmp_path / "laws"
-    path = out / "نظام" / "نظام العمل.md"
-    _write(path, "نظام العمل", "نظام", "نظام", "## المادة الأولى\n\nنص.")
+    path = out / "التنظيمات" / "نظام العمل.md"
+    _write(path, "نظام العمل", "نظام", "التنظيمات", "## المادة الأولى\n\nنص.")
 
     moved, unchanged, conflicts = reclassify(out)
 
@@ -61,6 +61,36 @@ def test_no_change_when_already_correct(tmp_path):
     assert unchanged == 1
     assert conflicts == []
     assert path.exists()
+
+
+def test_merges_nizam_folder_into_tanzimat(tmp_path):
+    # قرار المالك: مجلدا "نظام" و"التنظيمات" تصنيف واحد هو "التنظيمات"
+    out = tmp_path / "laws"
+    old = out / "نظام" / "تنظيم هيئة التراث.md"
+    _write(old, "تنظيم هيئة التراث", "نظام", "نظام", "## المادة الأولى\n\nنص.")
+
+    moved, unchanged, conflicts = reclassify(out)
+
+    assert conflicts == []
+    assert moved == 1
+    assert not old.parent.exists()
+    new = out / "التنظيمات" / "تنظيم هيئة التراث.md"
+    assert new.exists()
+    assert 'category: "التنظيمات"' in new.read_text(encoding="utf-8")
+
+
+def test_bare_generic_category_goes_to_uncategorized(tmp_path):
+    # "الأنظمة السعودية" وحدها لا تميّز شيئًا — كل المستودع أنظمة سعودية
+    out = tmp_path / "laws"
+    old = out / "الأنظمة السعودية" / "النظام الأساس لمؤسسة.md"
+    _write(old, "النظام الأساس لمؤسسة", "أخرى", "الأنظمة السعودية", "نص.")
+
+    moved, unchanged, conflicts = reclassify(out)
+
+    assert conflicts == []
+    assert moved == 1
+    assert not old.parent.exists()
+    assert (out / "غير-مصنف" / "النظام الأساس لمؤسسة.md").exists()
 
 
 def test_conflict_when_destination_already_occupied(tmp_path):

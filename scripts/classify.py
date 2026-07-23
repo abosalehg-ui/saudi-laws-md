@@ -56,6 +56,10 @@ _CATEGORY_ALIASES: dict[str, str] = {
     "الرياضة والشباب": "أنظمة الشباب والرياضة",
     "العمل والرعاية الاجتماعية": "أنظمة العمل والرعاية الاجتماعية",
     "التنظيمات السعودية": "التنظيمات",
+    # مجلد النوع "نظام" كان ينشأ من الرجوع لنوع الوثيقة عند غياب تصنيف
+    # الموقع، فتتوزع التنظيمات بين مجلدَي "نظام" و"التنظيمات". قرار
+    # المالك: تصنيف واحد هو "التنظيمات"
+    "نظام": "التنظيمات",
     # مجلدات نوعية عامة (لوائح/قواعد) تُدمَج في مجلد النوع "لائحة" القائم،
     # فتقلّ الفئات المفردة (كلا الملفين doc_type=لائحة أصلًا)
     "لوائح وقواعد": "لائحة",
@@ -79,6 +83,10 @@ def simplify_category(raw: str | None) -> str | None:
     result = result.rstrip(".").strip()
     if not result:
         return None
+    # "الأنظمة السعودية" وحدها (بلا مجال بعد الشرطة) لا تميّز شيئًا —
+    # كل المستودع أنظمة سعودية — فتُعامل كغياب تصنيف
+    if result == "الأنظمة السعودية":
+        return None
     return _CATEGORY_ALIASES.get(result, result)
 
 
@@ -91,7 +99,8 @@ def resolve_category(raw: str | None, doc_type: str | None) -> str | None:
     if simplified:
         return simplified
     if doc_type and doc_type != "أخرى":
-        return doc_type
+        # نوع الوثيقة كمجلد يمر عبر نفس التوحيد (مثل نظام → التنظيمات)
+        return _CATEGORY_ALIASES.get(doc_type, doc_type)
     return None
 
 
