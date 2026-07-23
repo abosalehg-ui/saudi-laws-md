@@ -1,0 +1,15 @@
+version: 2
+updates:
+  # اعتماديات Python (requests/bs4/lxml وأدوات dev) — تحديث أمني/دوري
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+
+  # إصدارات GitHub Actions المستخدمة في الـ workflows
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5

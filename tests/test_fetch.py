@@ -79,7 +79,8 @@ def test_non_retryable_status_raises_immediately_without_retry(monkeypatch):
     monkeypatch.setattr(
         fetcher.session, "get", lambda url, timeout, headers=None: calls.append(1) or FakeResponse(404)
     )
-    with pytest.raises(requests.HTTPError):
+    # يُلَفّ الخطأ النهائي في FetchError (عقد أخطاء موحّد) بدل HTTPError الخام
+    with pytest.raises(FetchError):
         fetcher.get("https://nezams.com/x/")
     assert len(calls) == 1  # لا إعادة محاولة لخطأ غير قابل للإعادة
 
@@ -162,3 +163,41 @@ def test_get_conditional_captures_new_etag_from_response(monkeypatch):
     result = fetcher.get_conditional("https://nezams.com/x/")
     assert result.etag == '"new-etag"'
     assert result.last_modified == "Thu, 02 Jan 2026 00:00:00 GMT"
+
+
+def test_robots_disallow_blocks_fetch(monkeypatch):
+    # مع respect_robots، مسار ممنوع في robots.txt يُرفَض قبل جلبه
+    fetcher = _fetcher(respect_robots=True)
+    robots = "User-agent: *\nDisallow: /private/\n"
+
+    def fake_get(url, timeout, headers=None):
+        if url.endswith("/robots.txt"):
+            return FakeResponse(200, robots)
+        return FakeResponse(200, "محتوى")
+
+    monkeypatch.setattr(fetcher.session, "get", fake_get)
+    with pytest.raises(FetchError):
+        fetcher.get("https://nezams.com/private/x/")
+    # مسار مسموح يمرّ، ويُعاد استخدام robots المخزّن (بلا جلب ثانٍ له)
+    assert fetcher.get("https://nezams.com/public/y/") == "محتوى"
+
+
+def test_robots_absent_allows_all(monkeypatch):
+    fetcher = _fetcher(respect_robots=True)
+    monkeypatch.setattr(
+        fetcher.session, "get",
+        lambda url, timeout, headers=None: FakeResponse(404 if url.endswith("robots.txt") else 200, "x"),
+    )
+    assert fetcher.get("https://nezams.com/anything/") == "x"
+
+
+def test_robots_ignored_when_disabled(monkeypatch):
+    # الافتراضي: لا فحص robots (لا جلب لـ robots.txt أصلًا)
+    fetcher = _fetcher()
+    calls = []
+    monkeypatch.setattr(
+        fetcher.session, "get",
+        lambda url, timeout, headers=None: calls.append(url) or FakeResponse(200, "x"),
+    )
+    fetcher.get("https://nezams.com/private/x/")
+    assert calls == ["https://nezams.com/private/x/"]  # بلا robots.txt

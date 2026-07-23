@@ -24,13 +24,13 @@ import sys
 from pathlib import Path
 
 from .classify import classify_doc_type, resolve_category
-from .formatter import UNCATEGORIZED, sanitize_filename
+from .formatter import UNCATEGORIZED, prune_empty_dirs, sanitize_filename
 from .frontmatter import read_field, set_field, unquote
+from .schema import CLAUSE_NAMES
 
 _TITLE_RE = re.compile(r'^title:\s*"((?:[^"\\]|\\.)*)"\s*$', re.MULTILINE)
 _CLAUSE_HEADING_RE = re.compile(
-    r"^#{2,3}\s*(أولا|ثانيا|ثالثا|رابعا|خامسا|سادسا|سابعا|ثامنا|تاسعا|عاشرا)ً?\s*$",
-    re.MULTILINE,
+    rf"^#{{2,3}}\s*({'|'.join(CLAUSE_NAMES)})ً?\s*$", re.MULTILINE
 )
 
 
@@ -63,8 +63,6 @@ def plan_move(path: Path, out_dir: Path) -> tuple[Path, str | None, str | None] 
 
 def reclassify(out_dir: Path, dry_run: bool = False) -> tuple[int, int, list[str]]:
     """يعيد تصنيف كل ملفات out_dir. يعيد (منقول، بلا تغيير، تعارضات غير محلولة)."""
-    from .main import _prune_empty_dirs  # يتجنّب استيراد دائري عند تحميل الحزمة
-
     moved = 0
     unchanged = 0
     conflicts: list[str] = []
@@ -106,7 +104,7 @@ def reclassify(out_dir: Path, dry_run: bool = False) -> tuple[int, int, list[str
 
     if not dry_run:
         for d in touched_dirs:
-            _prune_empty_dirs(d, out_dir)
+            prune_empty_dirs(d, out_dir)
 
     return moved, unchanged, conflicts
 

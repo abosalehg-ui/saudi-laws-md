@@ -86,6 +86,46 @@ class TestQanoonsa:
                 '<html><h1>عنوان</h1><div class="entry-content"></div></html>', ""
             )
 
+    def test_nested_paragraph_not_duplicated_in_article(self):
+        # p داخل li/blockquote يجب ألا يتكرر في متن المادة (M-4)
+        doc = get_adapter("qanoonsa").parse(
+            "<html><h1>نظام</h1>"
+            '<div class="entry-content"><h2>المادة الأولى</h2>'
+            "<ul><li><p>فقرة داخل بند</p></li></ul>"
+            "<blockquote><p>نص مقتبس</p></blockquote></div></html>",
+            "",
+        )
+        assert doc.articles[0].text.count("فقرة داخل بند") == 1
+        assert doc.articles[0].text.count("نص مقتبس") == 1
+
+    def test_cms_bilingual_label_stripped_from_title_and_body(self):
+        # بقايا حقول CMS ثنائية اللغة تُزال من العنوان والفقرات (M-6)
+        doc = get_adapter("qanoonsa").parse(
+            "<html><h1>Arabic Full Name: قرار رقم (٣) نزع ملكية</h1>"
+            '<div class="entry-content"><p>English صدر في: ٢٥ / ١٠ / ١٤٤٤هـ</p>'
+            "<h2>أولا</h2><p>نص البند</p></div></html>",
+            "",
+        )
+        assert doc.title == "قرار رقم (٣) نزع ملكية"
+        assert not doc.title.startswith("Arabic")
+        # "English صدر في:" أصبح "صدر في:" فالتُقط تاريخ الصدور بدل تسرّبه للمتن
+        assert doc.issued_date == "٢٥ / ١٠ / ١٤٤٤هـ"
+
+    def test_prose_body_with_article_labels_warns(self):
+        # وثيقة نثرية (بلا تقطيع مواد) تحوي عدة "المادة …" تُنذر باحتمال فشل
+        # التقطيع بدل المرور بصمت (M-1)
+        from scripts.schema import validate_document
+
+        doc = get_adapter("qanoonsa").parse(
+            "<html><h1>نظام</h1>"
+            '<div class="entry-content">'
+            "<p>المادة الأولى: نص أول</p><p>المادة الثانية: نص ثان</p></div></html>",
+            "",
+        )
+        assert doc.articles == [] and doc.body
+        warnings = validate_document(doc)
+        assert any("فشل تقطيع المواد" in w for w in warnings)
+
 
 class TestQanoonsaDecision:
     def test_metadata(self, qanoonsa_decision_doc):

@@ -14,15 +14,17 @@ import sys
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 from .adapters import detect_source, get_adapter
 from .adapters.base import ParseError
 from .classify import classify_doc_type, resolve_category
 from .discover import discover
 from .fetch import Fetcher, FetchError
-from .formatter import format_document, output_path
+from .formatter import format_document, output_path, prune_empty_dirs, sanitize_filename
 from .report import RunResult, build_summary
 from .schema import LawDocument, validate_document
+from .urls import canonical_url
 
 FAILED_LOG = Path("logs/failed.txt")
 DONE_LOG = Path("logs/done.txt")
@@ -44,7 +46,71 @@ def log_done(url: str, log_path: Path) -> None:
 _SOURCE_URL_RE = re.compile(r'^source_url:\s*"?(.*?)"?\s*$', re.MULTILINE)
 _ETAG_RE = re.compile(r'^etag:\s*"?(.*?)"?\s*$', re.MULTILINE)
 _LAST_MODIFIED_RE = re.compile(r'^last_modified:\s*"?(.*?)"?\s*$', re.MULTILINE)
-_HEAD_LINES = 25  # هامش يكفي كل حقول الـ front matter الحالية حتى retrieved_at/note
+# حدّ أمان لعدد أسطر الـ front matter (يمنع قراءة ملف ضخم بلا فاصل ثانٍ)
+_MAX_FRONT_MATTER_LINES = 100
+# عنوان مادة في متن Markdown (## أو ### المادة ...)، لكشف أن ملفًا قائمًا يحوي مواد
+_ARTICLE_HEADING_MD_RE = re.compile(r"^#{2,3}\s*المادة\s", re.MULTILINE)
+
+
+def _front_matter_head(path: Path) -> str:
+    """يقرأ كتلة الـ front matter فقط (حتى الفاصل ``---`` الثاني)، بلا قراءة
+    كامل الملف. حدٌّ بنيوي لا عددي (يزيل الرقم السحري السابق)، ويوفّر قراءة
+    آلاف الملفات الكاملة في كل تشغيلة (كان يُقرأ الملف كله ثم يُقتطع)."""
+    lines: list[str] = []
+    try:
+        with path.open(encoding="utf-8") as f:
+            first = f.readline()
+            if first.rstrip("\n") != "---":
+                return ""  # لا front matter
+            for line in f:
+                if line.rstrip("\n") == "---" or len(lines) >= _MAX_FRONT_MATTER_LINES:
+                    break
+                lines.append(line)
+    except OSError:
+        return ""
+    return "".join(lines)
+
+
+def _read_source_url(path: Path) -> str | None:
+    """يقرأ source_url من كتلة front matter لملف مخرجات موجود (أو None)."""
+    match = _SOURCE_URL_RE.search(_front_matter_head(path))
+    return match.group(1) if match and match.group(1) else None
+
+
+def _file_has_articles(path: Path) -> bool:
+    try:
+        return bool(_ARTICLE_HEADING_MD_RE.search(path.read_text(encoding="utf-8")))
+    except OSError:
+        return False
+
+
+def _disambiguate_path(path: Path, url: str) -> Path:
+    """يشتق اسمًا مميزًا عند تصادم المسار مع وثيقة أخرى، من آخر مقطع في الرابط.
+
+    لـ qanoonsa هذا معرّف المنشور (p/516403 ← 516403)، ولـ nezams اسم
+    المقالة (slug) — كلاهما فريد لكل وثيقة، فالنتيجة حتمية وقابلة للتكرار.
+    """
+    segments = [s for s in urlparse(url).path.split("/") if s]
+    disc = unquote(segments[-1]) if segments else "نسخة"
+    return path.with_name(sanitize_filename(f"{path.stem} ({disc})") + path.suffix)
+
+
+def _resolve_collision(path: Path, source_url: str) -> Path:
+    """يعيد مسارًا آمنًا للكتابة: يتجنّب طمس وثيقة أخرى تتصادم في الاسم.
+
+    الكتابة فوق ملف قائم مسموحة فقط إن كان لنفس source_url (تحديث في مكانه).
+    إن كان لوثيقة مختلفة (تصادم عنوان بعد الاقتطاع، أو نفس العنوان من
+    المصدرين) يُشتق اسم مميز؛ ويُكرَّر عند تصادم نادر متتالٍ.
+    """
+    if not path.exists() or _read_source_url(path) == source_url:
+        return path
+    candidate = _disambiguate_path(path, source_url)
+    counter = 2
+    while candidate.exists() and _read_source_url(candidate) != source_url:
+        stem = _disambiguate_path(path, source_url).stem
+        candidate = candidate.with_name(sanitize_filename(f"{stem} {counter}") + path.suffix)
+        counter += 1
+    return candidate
 
 
 @dataclass
@@ -68,15 +134,12 @@ def build_source_index(out_dir: Path) -> dict[str, OutputEntry]:
     if not out_dir.exists():
         return index
     for md in out_dir.rglob("*.md"):
-        try:
-            head = "\n".join(md.read_text(encoding="utf-8").splitlines()[:_HEAD_LINES])
-        except OSError:
-            continue
+        head = _front_matter_head(md)
         match = _SOURCE_URL_RE.search(head)
         if match and match.group(1):
             etag_m = _ETAG_RE.search(head)
             lm_m = _LAST_MODIFIED_RE.search(head)
-            index[match.group(1)] = OutputEntry(
+            index[canonical_url(match.group(1))] = OutputEntry(
                 path=md,
                 etag=etag_m.group(1) if etag_m and etag_m.group(1) else None,
                 last_modified=lm_m.group(1) if lm_m and lm_m.group(1) else None,
@@ -98,26 +161,10 @@ def load_done(log_path: Path) -> set[str]:
     if not log_path.exists():
         return set()
     return {
-        line.strip()
+        canonical_url(line.strip())
         for line in log_path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     }
-
-
-def _prune_empty_dirs(start: Path, root: Path) -> None:
-    """يحذف start وأسلافه طالما فارغين، دون تجاوز root."""
-    current = start
-    try:
-        root = root.resolve()
-        current = current.resolve()
-    except OSError:
-        return
-    while current != root and root in current.parents:
-        try:
-            current.rmdir()
-        except OSError:
-            break
-        current = current.parent
 
 
 def process_html(
@@ -130,6 +177,15 @@ def process_html(
     last_modified: str | None = None,
 ) -> tuple[LawDocument, list[str]]:
     doc = get_adapter(source).parse(html, url)
+    # حارس M-1: ناتج نثري بلا مواد سيطمس ملفًا قائمًا يحوي مواد لنفس الرابط
+    # مؤشّر قوي على فشل التقطيع (تغيّر بنية المصدر) لا وثيقة نثرية جديدة —
+    # نرفض الكتابة ونسجّله فشلًا بدل تخريب الملف الجيد بصمت
+    if existing is not None and doc.body and not doc.articles:
+        prior = existing.get(doc.source_url)
+        if prior is not None and prior.path.exists() and _file_has_articles(prior.path):
+            raise ParseError(
+                "ناتج نثري بلا مواد سيطمس ملفًا قائمًا يحوي مواد (يُحتمل تغيّر بنية المصدر)"
+            )
     doc.retrieved_at = date.today().isoformat()
     doc.doc_type = classify_doc_type(doc.title, url, doc.is_decision)
     doc.category = args.category or resolve_category(doc.category, doc.doc_type)
@@ -140,11 +196,15 @@ def process_html(
         print(f"تحذير [{doc.title}]: {warning}", file=sys.stderr)
     out_dir = Path(args.out)
     path = output_path(doc, out_dir)
+    # حارس M-3: لا تكتب فوق وثيقة مختلفة تتصادم في المسار (اقتطاع الاسم أو
+    # نفس العنوان من المصدرين). يُحسم قبل نقل الملف القديم حتى تبقى العملية
+    # idempotent: الوجهة المميّزة نفسها تُختار في كل تشغيل.
+    path = _resolve_collision(path, doc.source_url)
     if existing is not None:
         old_entry = existing.get(doc.source_url)
         if old_entry is not None and old_entry.path != path and old_entry.path.exists():
             old_entry.path.unlink()
-            _prune_empty_dirs(old_entry.path.parent, out_dir)
+            prune_empty_dirs(old_entry.path.parent, out_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(format_document(doc), encoding="utf-8")
     if existing is not None:
@@ -206,6 +266,11 @@ def run(argv: list[str] | None = None) -> int:
             "إعادة التحليل والكتابة إن لم يتغيّر المحتوى منذ آخر جلب"
         ),
     )
+    parser.add_argument(
+        "--ignore-robots",
+        action="store_true",
+        help="تعطيل فحص robots.txt (يُحترَم افتراضيًا)",
+    )
     args = parser.parse_args(argv)
 
     if args.html:
@@ -215,7 +280,8 @@ def run(argv: list[str] | None = None) -> int:
         existing = build_source_index(Path(args.out))
         try:
             process_html(
-                Path(args.html).read_text(encoding="utf-8"), args.url, source, args, existing
+                Path(args.html).read_text(encoding="utf-8"),
+                canonical_url(args.url), source, args, existing,
             )
         except (ParseError, OSError) as exc:
             log_failure(args.html, str(exc))
@@ -223,7 +289,7 @@ def run(argv: list[str] | None = None) -> int:
             return 1
         return 0
 
-    fetcher = Fetcher(delay=args.delay)
+    fetcher = Fetcher(delay=args.delay, respect_robots=not args.ignore_robots)
 
     urls = list(args.urls)
     if args.from_file:
@@ -248,7 +314,11 @@ def run(argv: list[str] | None = None) -> int:
     existing = build_source_index(Path(args.out))
     done: set[str] = set()
     if args.resume:
-        done = load_done(DONE_LOG) | set(existing.keys())
+        done = load_done(DONE_LOG)
+        # مع --check-updates تمرّ الروابط المعروفة (لها ملف) على الجلب
+        # الشرطي بدل تخطّيها، وإلا لبطل --resume الفحصَ الشرطي بصمت (M-5)
+        if not args.check_updates:
+            done |= set(existing.keys())
 
     failures = 0
     processed = 0
@@ -256,6 +326,7 @@ def run(argv: list[str] | None = None) -> int:
     unchanged = 0
     results: list[RunResult] = []
     for url in urls:
+        url = canonical_url(url)  # هوية موحّدة عبر resume/check-updates/الفهرس
         if args.resume and url in done:
             skipped += 1
             continue

@@ -1,6 +1,16 @@
 from bs4 import BeautifulSoup
 
+from scripts.formatter import sanitize_filename
 from scripts.htmlmd import prose_to_markdown, table_to_markdown
+
+
+def test_sanitize_filename_rejects_dot_names():
+    # أسماء مكوّنة من نقاط فقط تُرفض (S-1: منع الكتابة خارج مجلد المخرجات)
+    assert sanitize_filename(".") == "بدون-عنوان"
+    assert sanitize_filename("..") == "بدون-عنوان"
+    assert sanitize_filename("/") == "بدون-عنوان"
+    # اسم شرعي يبقى كما هو
+    assert sanitize_filename("نظام العمل") == "نظام العمل"
 
 
 def _soup(html):
@@ -47,3 +57,14 @@ def test_prose_does_not_duplicate_paragraphs_nested_in_tables():
     ).find("div")
     md = prose_to_markdown(content)
     assert md.count("نص داخل الخلية") == 1
+
+
+def test_prose_does_not_duplicate_paragraphs_nested_in_li_or_blockquote():
+    # p داخل li/blockquote يُلتقط نصه ضمن حاويه؛ يجب ألا يتكرر (M-4)
+    content = _soup(
+        "<div><ul><li><p>بند داخل قائمة</p></li></ul>"
+        "<blockquote><p>نص مقتبس</p></blockquote></div>"
+    ).find("div")
+    md = prose_to_markdown(content)
+    assert md.count("بند داخل قائمة") == 1
+    assert md.count("نص مقتبس") == 1

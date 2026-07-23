@@ -16,13 +16,13 @@ import re
 import sys
 from urllib.parse import urlparse
 
+from .adapters import ADAPTERS
 from .fetch import Fetcher, FetchError
+from .urls import canonical_url
 
-SITE_INDEX = {
-    "qanoonsa": "https://qanoonsa.com/wp-sitemap.xml",
-    "nezams": "https://nezams.com/sitemap_index.xml",
-}
-_ALLOWED_HOSTS = {"qanoonsa.com", "nezams.com"}
+# مشتقّة من سجل المصادر (adapters/__init__)، لا مكرّرة يدويًا
+SITE_INDEX = {a.source: a.sitemap_index for a in ADAPTERS if a.sitemap_index}
+_ALLOWED_HOSTS = {h for a in ADAPTERS for h in a.hosts}
 
 # خرائط فرعية للتصنيفات/الوسوم/المستخدمين لا تحوي وثائق — تُستبعَد
 _SKIP_SUBMAP_RE = re.compile(r"(taxonom|category|post_tag|-tag|author|user)", re.I)
@@ -75,7 +75,10 @@ def discover(
             print(f"تعذّر جلب خريطة فرعية {submap}: {exc}", file=sys.stderr)
             continue
         for loc in _locs(xml):
-            if _host_ok(loc) and loc not in seen:
+            if not _host_ok(loc):
+                continue
+            loc = canonical_url(loc)  # هوية موحّدة تُطابق فهرس المخرجات
+            if loc not in seen:
                 seen.add(loc)
                 urls.append(loc)
     return urls
@@ -98,13 +101,16 @@ def run(argv: list[str] | None = None) -> int:
         help="إدراج صفحات تعديلات المواد المفردة (nezam_update) في nezams",
     )
     parser.add_argument("--delay", type=float, default=1.5, help="التأخير بين الطلبات بالثواني")
+    parser.add_argument(
+        "--ignore-robots", action="store_true", help="تعطيل فحص robots.txt (يُحترَم افتراضيًا)"
+    )
     args = parser.parse_args(argv)
 
     sources = args.sources or ["qanoonsa", "nezams"]
     unknown = [s for s in sources if s not in SITE_INDEX]
     if unknown:
         parser.error(f"مصادر غير معروفة: {', '.join(unknown)} (المتاح: qanoonsa، nezams)")
-    fetcher = Fetcher(delay=args.delay)
+    fetcher = Fetcher(delay=args.delay, respect_robots=not args.ignore_robots)
     all_urls: list[str] = []
     for source in sources:
         try:

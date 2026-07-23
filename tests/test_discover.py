@@ -67,3 +67,13 @@ def test_discover_include_updates_flag():
 def test_discover_unknown_source_raises():
     with pytest.raises(ValueError):
         discover("unknown", _fetcher())
+
+
+def test_site_index_and_allowed_hosts_derived_from_registry():
+    # SITE_INDEX و_ALLOWED_HOSTS يُشتقّان من سجل adapters لا يُكرّران يدويًا (A-1)
+    from scripts.adapters import ADAPTERS
+    from scripts.discover import _ALLOWED_HOSTS, SITE_INDEX
+
+    assert SITE_INDEX == {a.source: a.sitemap_index for a in ADAPTERS if a.sitemap_index}
+    assert _ALLOWED_HOSTS == {h for a in ADAPTERS for h in a.hosts}
+    assert "qanoonsa" in SITE_INDEX and "nezams" in SITE_INDEX

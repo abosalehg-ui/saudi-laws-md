@@ -14,8 +14,14 @@ _FRONT_MATTER_RE = re.compile(r"\A---\n(.*?)\n---\n", re.S)
 
 
 def read_field(text: str, field: str) -> str | None:
-    """يقرأ قيمة حقل نصي مفرد (غير قائمة) من أي مكان في النص."""
-    m = re.search(rf'^{re.escape(field)}:\s*"?(.*?)"?\s*$', text, re.MULTILINE)
+    """يقرأ قيمة حقل نصي مفرد (غير قائمة) من كتلة الـ front matter فقط.
+
+    مقصور على الكتلة (لا كامل النص) حتى لا يلتقط سطرًا في المتن يبدأ بالحقل
+    نفسه (وثيقة تقتبس نموذجًا أو جدولًا)، توحيدًا للعقد مع set_field.
+    """
+    fm = _FRONT_MATTER_RE.match(text)
+    block = fm.group(1) if fm else text
+    m = re.search(rf'^{re.escape(field)}:\s*"?(.*?)"?\s*$', block, re.MULTILINE)
     return m.group(1) if m and m.group(1) else None
 
 

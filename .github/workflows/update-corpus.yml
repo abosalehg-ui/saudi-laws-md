@@ -1,0 +1,67 @@
+name: update-corpus
+
+# تحديث دوري للمُدوَّنة من المصدرين عبر الجلب الشرطي (ETag/Last-Modified)،
+# ثم فتح Pull Request مسودة بالتغييرات للمراجعة اليدوية قبل الدمج.
+on:
+  schedule:
+    - cron: "0 3 1 * *"   # 03:00 UTC أول كل شهر
+  workflow_dispatch:       # وتشغيل يدوي عند الحاجة
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: pip install -e ".[dev]"
+
+      - name: جلب شرطي من المصدرين
+        run: |
+          python -m scripts.main --discover qanoonsa,nezams \
+            --check-updates --resume --delay 2 --report || true
+
+      - name: صيانة (تطبيع الروابط، إعادة تصنيف، تدقيق الازدواج، بناء الفهرس)
+        run: |
+          python -m scripts.canonicalize_urls laws
+          python -m scripts.reclassify laws
+          python -m scripts.audit_duplicates laws
+          python -m scripts.build_index laws
+
+      - name: فحص صحة المُدوَّنة
+        run: python -m scripts.lint_corpus laws --warnings || true
+
+      - name: رفع تقرير التشغيلة كأثر (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: summary
+          path: logs/summary.md
+          if-no-files-found: ignore
+
+      - name: فتح PR بالتغييرات إن وُجدت
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -z "$(git status --porcelain laws index.json)" ]; then
+            echo "لا تغييرات في laws/ — لا PR."
+            exit 0
+          fi
+          branch="auto/update-corpus-$(date -u +%Y%m%d)"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add laws index.json
+          git commit -m "تحديث دوري للمُدوَّنة من المصدرين (جلب شرطي)"
+          git push -u origin "$branch"
+          gh pr create --draft --base main --head "$branch" \
+            --title "تحديث دوري للمُدوَّنة $(date -u +%Y-%m)" \
+            --body "تشغيل آلي (\`--check-updates\`) على qanoonsa وnezams. راجِع الفروق يدويًا قبل الدمج؛ تقرير التشغيلة مرفوع كأثر (artifact) باسم summary."

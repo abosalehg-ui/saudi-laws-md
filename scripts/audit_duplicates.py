@@ -22,6 +22,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from .frontmatter import read_field, set_list_field, unquote
+from .urls import canonical_url
 
 _FIELD = "also_available_from"
 _LIST_FIELD_RE = re.compile(r'^also_available_from:\s*\[(.*?)\]\s*$', re.MULTILINE)
@@ -50,9 +51,15 @@ def annotate_duplicates(out_dir: Path, dry_run: bool = False) -> tuple[int, int]
         urls = {}
         for path in paths:
             text = path.read_text(encoding="utf-8")
-            urls[path] = read_field(text, "source_url") or ""
+            raw = read_field(text, "source_url")
+            urls[path] = canonical_url(raw) if raw else ""
         for path in paths:
-            siblings = sorted(u for p, u in urls.items() if p != path and u)
+            # روابط النسخ الأخرى فقط، مطبَّعة، وبلا الرابط الذاتي (منعًا
+            # لربط الوثيقة بنفسها عند اختلاف ترميز رابطها عن نسخة أخرى)
+            own = urls[path]
+            siblings = sorted(
+                {u for p, u in urls.items() if p != path and u and u != own}
+            )
             if not siblings:
                 continue
             text = path.read_text(encoding="utf-8")
