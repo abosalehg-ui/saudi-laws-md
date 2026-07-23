@@ -41,7 +41,7 @@ jobs:
 
       - name: رفع تقرير التشغيلة كأثر (artifact)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: summary
           path: logs/summary.md
