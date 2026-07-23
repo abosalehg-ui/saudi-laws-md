@@ -1,6 +1,16 @@
 from bs4 import BeautifulSoup
 
+from scripts.formatter import sanitize_filename
 from scripts.htmlmd import prose_to_markdown, table_to_markdown
+
+
+def test_sanitize_filename_rejects_dot_names():
+    # أسماء مكوّنة من نقاط فقط تُرفض (S-1: منع الكتابة خارج مجلد المخرجات)
+    assert sanitize_filename(".") == "بدون-عنوان"
+    assert sanitize_filename("..") == "بدون-عنوان"
+    assert sanitize_filename("/") == "بدون-عنوان"
+    # اسم شرعي يبقى كما هو
+    assert sanitize_filename("نظام العمل") == "نظام العمل"
 
 
 def _soup(html):

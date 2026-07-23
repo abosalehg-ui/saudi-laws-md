@@ -110,7 +110,11 @@ def sanitize_filename(name: str) -> str:
     name = re.sub(r"\s+", " ", name).strip()
     encoded = name.encode("utf-8")[:_MAX_FILENAME_BYTES]
     name = encoded.decode("utf-8", errors="ignore").strip()
-    return name or "بدون-عنوان"
+    # اسم مكوَّن من نقاط فقط ("." أو "..") يشير للمجلد نفسه/الأب — يُرفض حتى
+    # لا يكتب مسار مُشتق من عنوان/تصنيف غير موثوق خارج مجلد المخرجات (S-1)
+    if not name or set(name) <= {"."}:
+        return "بدون-عنوان"
+    return name
 
 
 def output_path(doc: LawDocument, out_dir: Path) -> Path:

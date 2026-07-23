@@ -99,7 +99,8 @@ def lint_file(path: Path, out_dir: Path) -> tuple[list[str], list[str]]:
 
 
 def lint_corpus(out_dir: Path) -> tuple[int, dict[Path, list[str]], dict[Path, list[str]]]:
-    files = sorted(out_dir.rglob("*.md"))
+    # README.md وثائق توضيحية للمجلد لا وثائق نظام؛ تُستثنى من الفحص
+    files = [p for p in sorted(out_dir.rglob("*.md")) if p.name != "README.md"]
     errors: dict[Path, list[str]] = {}
     warnings: dict[Path, list[str]] = {}
     for path in files:
