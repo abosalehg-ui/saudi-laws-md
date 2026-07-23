@@ -24,6 +24,7 @@ from .fetch import Fetcher, FetchError
 from .formatter import format_document, output_path, sanitize_filename
 from .report import RunResult, build_summary
 from .schema import LawDocument, validate_document
+from .urls import canonical_url
 
 FAILED_LOG = Path("logs/failed.txt")
 DONE_LOG = Path("logs/done.txt")
@@ -125,7 +126,7 @@ def build_source_index(out_dir: Path) -> dict[str, OutputEntry]:
         if match and match.group(1):
             etag_m = _ETAG_RE.search(head)
             lm_m = _LAST_MODIFIED_RE.search(head)
-            index[match.group(1)] = OutputEntry(
+            index[canonical_url(match.group(1))] = OutputEntry(
                 path=md,
                 etag=etag_m.group(1) if etag_m and etag_m.group(1) else None,
                 last_modified=lm_m.group(1) if lm_m and lm_m.group(1) else None,
@@ -147,7 +148,7 @@ def load_done(log_path: Path) -> set[str]:
     if not log_path.exists():
         return set()
     return {
-        line.strip()
+        canonical_url(line.strip())
         for line in log_path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     }
@@ -277,7 +278,8 @@ def run(argv: list[str] | None = None) -> int:
         existing = build_source_index(Path(args.out))
         try:
             process_html(
-                Path(args.html).read_text(encoding="utf-8"), args.url, source, args, existing
+                Path(args.html).read_text(encoding="utf-8"),
+                canonical_url(args.url), source, args, existing,
             )
         except (ParseError, OSError) as exc:
             log_failure(args.html, str(exc))
@@ -310,7 +312,11 @@ def run(argv: list[str] | None = None) -> int:
     existing = build_source_index(Path(args.out))
     done: set[str] = set()
     if args.resume:
-        done = load_done(DONE_LOG) | set(existing.keys())
+        done = load_done(DONE_LOG)
+        # مع --check-updates تمرّ الروابط المعروفة (لها ملف) على الجلب
+        # الشرطي بدل تخطّيها، وإلا لبطل --resume الفحصَ الشرطي بصمت (M-5)
+        if not args.check_updates:
+            done |= set(existing.keys())
 
     failures = 0
     processed = 0
@@ -318,6 +324,7 @@ def run(argv: list[str] | None = None) -> int:
     unchanged = 0
     results: list[RunResult] = []
     for url in urls:
+        url = canonical_url(url)  # هوية موحّدة عبر resume/check-updates/الفهرس
         if args.resume and url in done:
             skipped += 1
             continue

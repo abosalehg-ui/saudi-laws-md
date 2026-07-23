@@ -17,6 +17,7 @@ import sys
 from urllib.parse import urlparse
 
 from .fetch import Fetcher, FetchError
+from .urls import canonical_url
 
 SITE_INDEX = {
     "qanoonsa": "https://qanoonsa.com/wp-sitemap.xml",
@@ -75,7 +76,10 @@ def discover(
             print(f"تعذّر جلب خريطة فرعية {submap}: {exc}", file=sys.stderr)
             continue
         for loc in _locs(xml):
-            if _host_ok(loc) and loc not in seen:
+            if not _host_ok(loc):
+                continue
+            loc = canonical_url(loc)  # هوية موحّدة تُطابق فهرس المخرجات
+            if loc not in seen:
                 seen.add(loc)
                 urls.append(loc)
     return urls
