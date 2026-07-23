@@ -1,0 +1,23 @@
+name: smoke
+
+# فحص دخاني أسبوعي ضد المواقع الحيّة: يكشف تغيّر بنية HTML للموقعين مبكرًا
+# (عطل استخراج صامت لا تلتقطه اختبارات الـ fixtures الثابتة). يحتاج شبكة،
+# لذا هو منفصل عن CI العادي ولا يعمل على كل push/PR.
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # 06:00 UTC كل اثنين
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - name: فحص استخراج عيّنة من كل مصدر
+        run: python -m scripts.smoke

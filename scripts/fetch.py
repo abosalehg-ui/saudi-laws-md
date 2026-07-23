@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from urllib.parse import urlsplit
+from urllib.robotparser import RobotFileParser
 
 import requests
 
@@ -26,10 +28,20 @@ class FetchResult:
 
 
 class Fetcher:
-    def __init__(self, delay: float = 1.5, timeout: float = 30, max_attempts: int = 4):
+    def __init__(
+        self,
+        delay: float = 1.5,
+        timeout: float = 30,
+        max_attempts: int = 4,
+        respect_robots: bool = False,
+    ):
         self.delay = delay
         self.timeout = timeout
         self.max_attempts = max_attempts
+        # احترام robots.txt اختياري (opt-in): يُفعّله سطح التشغيل (main/discover)
+        # ويبقى مطفأً في الطبقة الخام حتى لا تتطلّب الاختبارات جلب robots.txt
+        self.respect_robots = respect_robots
+        self._robots: dict[str, RobotFileParser] = {}
         self._last_request: float | None = None
         self.session = requests.Session()
         self.session.headers.update(
@@ -43,12 +55,36 @@ class Fetcher:
                 time.sleep(remaining)
         self._last_request = time.monotonic()
 
+    def _robots_for(self, url: str) -> RobotFileParser:
+        parts = urlsplit(url)
+        host = parts.netloc
+        rp = self._robots.get(host)
+        if rp is None:
+            rp = RobotFileParser()
+            robots_url = f"{parts.scheme}://{host}/robots.txt"
+            try:
+                self._wait()
+                resp = self.session.get(robots_url, timeout=self.timeout)
+                if resp.status_code == 200:
+                    rp.parse(resp.text.splitlines())
+                else:
+                    rp.allow_all = True  # لا robots.txt ⇒ يُسمح بالكل
+            except requests.RequestException:
+                rp.allow_all = True  # تعذّر جلبه ⇒ لا نمنع أنفسنا
+            self._robots[host] = rp
+        return rp
+
+    def _check_allowed(self, url: str) -> None:
+        if self.respect_robots and not self._robots_for(url).can_fetch(USER_AGENT, url):
+            raise FetchError(f"robots.txt يمنع الزحف إلى {url}")
+
     def _request(
         self,
         url: str,
         headers: dict[str, str] | None = None,
         extra_ok_status: frozenset[int] = frozenset(),
     ) -> requests.Response:
+        self._check_allowed(url)
         last_error: str = ""
         for attempt in range(self.max_attempts):
             self._wait()

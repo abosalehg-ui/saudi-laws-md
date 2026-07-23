@@ -102,13 +102,16 @@ def run(argv: list[str] | None = None) -> int:
         help="إدراج صفحات تعديلات المواد المفردة (nezam_update) في nezams",
     )
     parser.add_argument("--delay", type=float, default=1.5, help="التأخير بين الطلبات بالثواني")
+    parser.add_argument(
+        "--ignore-robots", action="store_true", help="تعطيل فحص robots.txt (يُحترَم افتراضيًا)"
+    )
     args = parser.parse_args(argv)
 
     sources = args.sources or ["qanoonsa", "nezams"]
     unknown = [s for s in sources if s not in SITE_INDEX]
     if unknown:
         parser.error(f"مصادر غير معروفة: {', '.join(unknown)} (المتاح: qanoonsa، nezams)")
-    fetcher = Fetcher(delay=args.delay)
+    fetcher = Fetcher(delay=args.delay, respect_robots=not args.ignore_robots)
     all_urls: list[str] = []
     for source in sources:
         try:

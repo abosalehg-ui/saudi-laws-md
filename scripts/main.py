@@ -269,6 +269,11 @@ def run(argv: list[str] | None = None) -> int:
             "إعادة التحليل والكتابة إن لم يتغيّر المحتوى منذ آخر جلب"
         ),
     )
+    parser.add_argument(
+        "--ignore-robots",
+        action="store_true",
+        help="تعطيل فحص robots.txt (يُحترَم افتراضيًا)",
+    )
     args = parser.parse_args(argv)
 
     if args.html:
@@ -287,7 +292,7 @@ def run(argv: list[str] | None = None) -> int:
             return 1
         return 0
 
-    fetcher = Fetcher(delay=args.delay)
+    fetcher = Fetcher(delay=args.delay, respect_robots=not args.ignore_robots)
 
     urls = list(args.urls)
     if args.from_file:
