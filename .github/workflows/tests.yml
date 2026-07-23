@@ -25,3 +25,15 @@ jobs:
           python-version: "3.11"
       - run: pip install -e ".[dev]"
       - run: ruff check scripts tests
+
+  corpus:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      # فحص صحة المُدوَّنة المُلتزمة: يُفشل عند الأخطاء الصلبة (عناوين معطوبة،
+      # ضجيج واجهة، فقرات مكرّرة، حقول ناقصة)؛ التحذيرات تُعرض ولا تُفشل
+      - run: python -m scripts.lint_corpus laws --warnings

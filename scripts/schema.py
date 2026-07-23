@@ -68,15 +68,45 @@ def sequence_warnings(doc: LawDocument) -> list[str]:
     return warnings
 
 
-# أنماط ضجيج واجهة يجب ألا تتسرب إلى متن أي مادة/وثيقة
+# ترتيب بنود القرار (أولا/ثانيا/…) لكشف بند بلا سابقه (مثل «ثانيا» بلا «أولا»)
+_CLAUSE_ORDER = (
+    "أولا", "ثانيا", "ثالثا", "رابعا", "خامسا",
+    "سادسا", "سابعا", "ثامنا", "تاسعا", "عاشرا",
+)
+_CLAUSE_RANK = {name: i for i, name in enumerate(_CLAUSE_ORDER)}
+
+
+def clause_sequence_warnings(doc: LawDocument) -> list[str]:
+    """تحقق تسلسل بنود القرار؛ يرصد بندًا يسبق ترتيبه ما قبله (بند مفقود)."""
+    if not doc.is_decision:
+        return []
+    warnings: list[str] = []
+    prev_rank = -1
+    for art in doc.articles:
+        rank = _CLAUSE_RANK.get(art.number.strip())
+        if rank is None:
+            continue
+        if rank != prev_rank + 1:
+            expected = _CLAUSE_ORDER[prev_rank + 1] if prev_rank + 1 < len(_CLAUSE_ORDER) else "?"
+            warnings.append(
+                f"خلل تسلسل البنود: «{art.number}» بلا ما قبله (المتوقع «{expected}»)"
+            )
+        prev_rank = rank
+    return warnings
+
+
+# أنماط ضجيج واجهة يجب ألا تتسرب إلى متن أي مادة/وثيقة.
+# ملاحظة: الأنماط هنا خاصة قدر الإمكان لتفادي مطابقة نص قانوني مشروع —
+# «جميع الحقوق» و«رقم المادة» تردان فعلًا في المتون («جميع الحقوق والمزايا»،
+# «رقم المادة» كترويسة عمود في جداول التعديلات)، فاستُبدلتا بالصيغة الحرفية
+# للضجيج (footer المشاركة/الحقوق) بدل المقطع العام.
 _NOISE_PATTERNS = (
     "مشاركة المادة",
     "رابط المادة",
     "النص والرابط",
-    "رقم المادة",
     "حجم الخط",
     "عدد القراءات",
-    "جميع الحقوق",
+    "جميع الحقوق محفوظة",
 )
 
 # عناوين تشبه أخطاء صيغ جداول بيانات (Excel/Google Sheets) متسرّبة من
@@ -91,6 +121,7 @@ def validate_document(doc: LawDocument) -> list[str]:
     أي محتوى. الغرض رصد أعطال الاستخراج مبكرًا في الاستيراد بالجملة.
     """
     warnings = list(sequence_warnings(doc))
+    warnings.extend(clause_sequence_warnings(doc))
 
     if _BROKEN_TITLE_RE.match(doc.title.strip()):
         warnings.append(f"عنوان يشبه خطأ صيغة جدول بيانات: «{doc.title}»")
