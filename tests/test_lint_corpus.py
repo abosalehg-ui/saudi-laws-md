@@ -69,6 +69,16 @@ def test_duplicate_consecutive_paragraph_is_error(tmp_path):
     assert any("مكرّرة" in e for e in errors)
 
 
+def test_empty_body_is_error(tmp_path):
+    # وثيقة بـ front matter وعنوان فقط، بلا أي متن — عطل استخراج صامت
+    p = _write(
+        tmp_path / "ت" / "e.md",
+        '---\ntitle: "س"\nsource_url: "https://q/1/"\n---\n\n# س\n',
+    )
+    errors, _ = lint_file(p, tmp_path)
+    assert any("بلا متن" in e for e in errors)
+
+
 def test_run_returns_zero_on_clean_tree(tmp_path):
     _write(tmp_path / "ت" / "نظام تجريبي.md", GOOD)
     assert run([str(tmp_path)]) == 0
