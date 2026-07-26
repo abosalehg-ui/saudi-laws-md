@@ -81,8 +81,6 @@ def format_document(doc: LawDocument) -> str:
         lines.append(doc.body.strip())
         return "\n".join(lines) + "\n"
 
-    has_sections = any(a.section for a in doc.articles)
-    article_heading = "###" if has_sections else "##"
     current_section: str | None = None
     for art in doc.articles:
         if art.section and art.section != current_section:
@@ -91,6 +89,10 @@ def format_document(doc: LawDocument) -> str:
             lines.append(f"## {art.section}")
         lines.append("")
         heading_text = art.number if doc.is_decision else f"المادة {art.number}"
+        # المستوى لكل مادة على حدة: ### تحت باب/فصل (##)، و## لمادة بلا قسم.
+        # رفعُ كل المواد إلى ### لمجرد وجود قسم واحد في الوثيقة كان يقفز
+        # H1→H3 للمواد السابقة لأول باب، فيكسر التسلسل الهرمي للعناوين
+        article_heading = "###" if art.section else "##"
         lines.append(f"{article_heading} {heading_text}")
         lines.append("")
         lines.append(art.text.strip())

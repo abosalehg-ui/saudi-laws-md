@@ -44,7 +44,8 @@ def test_prose_skips_given_lines_and_renders_headings():
     ).find("div")
     md = prose_to_markdown(content, skip=frozenset({"English"}))
     assert "English" not in md
-    assert "### عنوان فرعي" in md
+    assert "## عنوان فرعي" in md
+    assert "### عنوان فرعي" not in md  # لا قفز H1→H3 في الوثائق النثرية
     assert "فقرة مهمة." in md
     assert "- عنصر قائمة" in md
 

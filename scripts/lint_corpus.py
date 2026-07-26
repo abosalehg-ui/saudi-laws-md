@@ -77,6 +77,13 @@ def lint_file(path: Path, out_dir: Path) -> tuple[list[str], list[str]]:
         errors.append(f"عنوان معطوب: «{title}»")
 
     body = _body_after_front_matter(text)
+    # وثيقة بلا أي متن بعد عنوانها (front matter + # عنوان فقط) عطلُ استخراجٍ
+    # صامت — validate_document يرصده لحظة السحب، لكن لا شيء كان يرصده في
+    # المُدوَّنة المُلتزَمة، فتراكمت 132 وثيقة جوفاء مرّت عبر CI بصمت
+    content = re.sub(r"^\s*#\s.*$", "", body, count=1, flags=re.MULTILINE).strip()
+    if not content:
+        errors.append("وثيقة بلا متن: front matter وعنوان فقط")
+
     for pattern in _NOISE_PATTERNS:
         if pattern in body:
             errors.append(f"ضجيج واجهة في المتن: «{pattern}»")

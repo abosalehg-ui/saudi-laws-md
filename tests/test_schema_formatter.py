@@ -93,6 +93,17 @@ def test_sections_promote_articles_to_h3():
     assert "### المادة الثانية" in md
 
 
+def test_article_without_section_stays_h2_even_when_doc_has_sections():
+    # مادة تسبق أول باب يجب أن تبقى ## لا ### — وإلا قفز التسلسل H1→H3
+    doc = make_doc()
+    doc.articles[1].section = "الباب الأول"
+    md = format_document(doc)
+    assert "## المادة الأولى" in md
+    assert "### المادة الأولى" not in md
+    assert "## الباب الأول" in md
+    assert "### المادة الثانية" in md
+
+
 def test_sequence_warnings():
     doc = make_doc()
     assert sequence_warnings(doc) == []
