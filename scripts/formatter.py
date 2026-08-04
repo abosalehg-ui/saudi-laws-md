@@ -119,6 +119,25 @@ def sanitize_filename(name: str) -> str:
     return name
 
 
+def disambiguated_filename(stem: str, discriminator: str) -> str:
+    """«جذع (مميِّز)» مع ضمان بقاء المميِّز كاملًا بعد الاقتطاع.
+
+    sanitize_filename يقتطع من نهاية الاسم، فحين يبلغ الجذع وحده حدَّ الطول
+    تضيع لاحقة التمييز كلها ويعود الاسم مطابقًا للاسم المتصادم — وهو ما كان
+    يُدخل حلقة _resolve_collision في دوران بلا نهاية. هنا يُقتطع الجذع بقدر
+    ما تتطلّبه اللاحقة، فيبقى الناتج مميَّزًا مهما طال العنوان.
+    """
+    discriminator = sanitize_filename(discriminator)
+    tail = f" ({discriminator})"
+    budget = _MAX_FILENAME_BYTES - len(tail.encode("utf-8"))
+    if budget <= 0:
+        # مميِّز أطول من حدّ الاسم كله: يُقتطع هو نفسه ويُستغنى عن الجذع
+        return sanitize_filename(discriminator)
+    stem = sanitize_filename(stem).encode("utf-8")[:budget]
+    stem = stem.decode("utf-8", errors="ignore").strip()
+    return sanitize_filename(f"{stem}{tail}")
+
+
 def output_path(doc: LawDocument, out_dir: Path) -> Path:
     category = sanitize_filename(doc.category) if doc.category else UNCATEGORIZED
     return out_dir / category / f"{sanitize_filename(doc.title)}.md"

@@ -21,7 +21,12 @@ from .adapters.base import ParseError
 from .classify import classify_doc_type, resolve_category
 from .discover import discover
 from .fetch import Fetcher, FetchError
-from .formatter import format_document, output_path, prune_empty_dirs, sanitize_filename
+from .formatter import (
+    disambiguated_filename,
+    format_document,
+    output_path,
+    prune_empty_dirs,
+)
 from .report import RunResult, build_summary
 from .schema import LawDocument, validate_document
 from .urls import canonical_url
@@ -84,15 +89,19 @@ def _file_has_articles(path: Path) -> bool:
         return False
 
 
-def _disambiguate_path(path: Path, url: str) -> Path:
+def _disambiguate_path(path: Path, url: str, counter: int | None = None) -> Path:
     """يشتق اسمًا مميزًا عند تصادم المسار مع وثيقة أخرى، من آخر مقطع في الرابط.
 
     لـ qanoonsa هذا معرّف المنشور (p/516403 ← 516403)، ولـ nezams اسم
     المقالة (slug) — كلاهما فريد لكل وثيقة، فالنتيجة حتمية وقابلة للتكرار.
+    ``counter`` يُضاف داخل المميِّز (لا بعده) كي ينجو من الاقتطاع فيختلف
+    الاسم فعليًا في كل دورة من دورات فضّ التصادم.
     """
     segments = [s for s in urlparse(url).path.split("/") if s]
     disc = unquote(segments[-1]) if segments else "نسخة"
-    return path.with_name(sanitize_filename(f"{path.stem} ({disc})") + path.suffix)
+    if counter is not None:
+        disc = f"{disc} {counter}"
+    return path.with_name(disambiguated_filename(path.stem, disc) + path.suffix)
 
 
 def _resolve_collision(path: Path, source_url: str) -> Path:
@@ -107,8 +116,7 @@ def _resolve_collision(path: Path, source_url: str) -> Path:
     candidate = _disambiguate_path(path, source_url)
     counter = 2
     while candidate.exists() and _read_source_url(candidate) != source_url:
-        stem = _disambiguate_path(path, source_url).stem
-        candidate = candidate.with_name(sanitize_filename(f"{stem} {counter}") + path.suffix)
+        candidate = _disambiguate_path(path, source_url, counter)
         counter += 1
     return candidate
 
