@@ -51,6 +51,32 @@ def test_collision_guard_is_idempotent(tmp_path, monkeypatch):
     assert len(list((tmp_path / "laws" / "ت").glob("*.md"))) == 2
 
 
+def test_collision_on_long_title_terminates_and_disambiguates(tmp_path, monkeypatch):
+    # عنوان يتجاوز حدّ طول اسم الملف: كانت لاحقة التمييز تُقتطع كاملة فيعود
+    # الاسم مطابقًا للمتصادم وتدور حلقة _resolve_collision بلا نهاية.
+    monkeypatch.chdir(tmp_path)
+    out = str(tmp_path / "laws")
+    long_title = (
+        "قرار مجلس الوزراء الموافقة على أن يكون احتساب المدد في جميع "
+        + "الإجراءات والتعاملات الرسمية على أساس التاريخ الميلادي " * 3
+    )
+    page = _write(tmp_path, "a.html", ARTICLE_PAGE.format(title=long_title))
+    common = ["--html", str(page), "--source", "qanoonsa", "--category", "ت", "--out", out]
+
+    assert run(common + ["--url", "https://qanoonsa.com/p/500604/"]) == 0
+    assert run(common + ["--url", "https://qanoonsa.com/p/500604-2/"]) == 0
+    assert run(common + ["--url", "https://qanoonsa.com/p/500604-3/"]) == 0
+
+    files = sorted(p.name for p in (tmp_path / "laws" / "ت").glob("*.md"))
+    assert len(files) == 3
+    assert len(set(files)) == 3  # ثلاثة أسماء متمايزة فعلًا
+    for name in files:
+        assert len(name.encode("utf-8")) <= 203  # 200 بايت + ".md"
+    # المميِّز نجا من الاقتطاع في النسختين المتصادمتين
+    assert any("(500604-2)" in name for name in files)
+    assert any("(500604-3)" in name for name in files)
+
+
 def test_prose_result_refuses_to_clobber_existing_article_file(tmp_path, monkeypatch):
     # ناتج نثري بلا مواد لنفس الرابط يجب ألا يطمس ملفًا قائمًا يحوي مواد (M-1)
     monkeypatch.chdir(tmp_path)
