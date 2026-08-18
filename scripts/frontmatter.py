@@ -9,8 +9,32 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
+
+# حدّ أمان لعدد أسطر الـ front matter (يمنع قراءة ملف ضخم بلا فاصل ثانٍ)
+_MAX_FRONT_MATTER_LINES = 100
 
 _FRONT_MATTER_RE = re.compile(r"\A---\n(.*?)\n---\n", re.S)
+
+
+def read_head(path: Path) -> str:
+    """يقرأ كتلة الـ front matter من ملف على القرص، بلا قراءة الملف كله.
+
+    مسار ساخن: تُفحص لكل ملف في كل تشغيلة (آلاف الملفات)، فتتوقّف القراءة
+    عند الفاصل ``---`` الثاني بدل تحميل 43 ميغابايت لاستخراج بضعة حقول.
+    """
+    lines: list[str] = []
+    try:
+        with path.open(encoding="utf-8") as f:
+            if f.readline().rstrip("\n") != "---":
+                return ""  # لا front matter
+            for line in f:
+                if line.rstrip("\n") == "---" or len(lines) >= _MAX_FRONT_MATTER_LINES:
+                    break
+                lines.append(line)
+    except OSError:
+        return ""
+    return "".join(lines)
 
 
 _LIST_VALUE_RE = re.compile(r'"((?:[^"\\]|\\.)*)"')

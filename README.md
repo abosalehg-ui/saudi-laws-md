@@ -71,6 +71,8 @@ saudi-laws-md/
 ├── index.json                 # فهرس آلي بالبيانات الوصفية (ناتج build_index)
 ├── pyproject.toml
 ├── ENGINEERING_REVIEW.md       # ملاحظات هندسية على بنية المشروع وأدواته
+├── مراجعة-مِحَك-saudi-laws-md.md  # مراجعة شاملة مُقيَّمة وخطة إصلاح
+├── CHANGELOG-مِحَك.md            # تفصيل تنفيذ خطة المراجعة
 ├── LICENSE
 └── README.md
 ```

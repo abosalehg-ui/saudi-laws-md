@@ -31,6 +31,7 @@ from .formatter import (
     output_path,
     prune_empty_dirs,
 )
+from .frontmatter import read_head
 from .report import RunResult, build_summary
 from .schema import MIN_BODY_CHARS, LawDocument, body_length, validate_document
 from .status import normalize_status
@@ -56,34 +57,13 @@ def log_done(url: str, log_path: Path) -> None:
 _SOURCE_URL_RE = re.compile(r'^source_url:\s*"?(.*?)"?\s*$', re.MULTILINE)
 _ETAG_RE = re.compile(r'^etag:\s*"?(.*?)"?\s*$', re.MULTILINE)
 _LAST_MODIFIED_RE = re.compile(r'^last_modified:\s*"?(.*?)"?\s*$', re.MULTILINE)
-# حدّ أمان لعدد أسطر الـ front matter (يمنع قراءة ملف ضخم بلا فاصل ثانٍ)
-_MAX_FRONT_MATTER_LINES = 100
 # عنوان مادة في متن Markdown (## أو ### المادة ...)، لكشف أن ملفًا قائمًا يحوي مواد
 _ARTICLE_HEADING_MD_RE = re.compile(r"^#{2,3}\s*المادة\s", re.MULTILINE)
 
 
-def _front_matter_head(path: Path) -> str:
-    """يقرأ كتلة الـ front matter فقط (حتى الفاصل ``---`` الثاني)، بلا قراءة
-    كامل الملف. حدٌّ بنيوي لا عددي (يزيل الرقم السحري السابق)، ويوفّر قراءة
-    آلاف الملفات الكاملة في كل تشغيلة (كان يُقرأ الملف كله ثم يُقتطع)."""
-    lines: list[str] = []
-    try:
-        with path.open(encoding="utf-8") as f:
-            first = f.readline()
-            if first.rstrip("\n") != "---":
-                return ""  # لا front matter
-            for line in f:
-                if line.rstrip("\n") == "---" or len(lines) >= _MAX_FRONT_MATTER_LINES:
-                    break
-                lines.append(line)
-    except OSError:
-        return ""
-    return "".join(lines)
-
-
 def _read_source_url(path: Path) -> str | None:
     """يقرأ source_url من كتلة front matter لملف مخرجات موجود (أو None)."""
-    match = _SOURCE_URL_RE.search(_front_matter_head(path))
+    match = _SOURCE_URL_RE.search(read_head(path))
     return match.group(1) if match and match.group(1) else None
 
 
@@ -147,7 +127,7 @@ def build_source_index(out_dir: Path) -> dict[str, OutputEntry]:
     if not out_dir.exists():
         return index
     for md in out_dir.rglob("*.md"):
-        head = _front_matter_head(md)
+        head = read_head(md)
         match = _SOURCE_URL_RE.search(head)
         if match and match.group(1):
             etag_m = _ETAG_RE.search(head)
