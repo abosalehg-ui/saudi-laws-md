@@ -89,3 +89,31 @@ def test_all_outputs_are_valid_types():
     ]
     for title in samples:
         assert classify_doc_type(title) in VALID_TYPES
+
+
+def test_definite_article_prefix_is_recognized():
+    """نصف العناوين تبدأ بـ«ال»؛ مطابقة النكرة وحدها أسقطت 266 وثيقة في «أخرى»."""
+    assert classify_doc_type("النظام الأساس لجامعة الرياض للفنون") == "نظام"
+    assert classify_doc_type("القواعد المنظمة للصناديق الأهلية") == "لائحة"
+    assert classify_doc_type("الاتفاقية العربية لمنع الاستنساخ البشري") == "اتفاقية"
+    assert classify_doc_type("الضوابط المنظمة للإجراءات الجمركية") == "معايير"
+    assert classify_doc_type("الأمر الملكي رقم (أ/٤٠٦)") == "أمر ملكي"
+
+
+def test_amendment_wins_over_the_instrument_it_amends():
+    """«تعديل اللائحة التنفيذية…» وثيقةُ تعديل لا لائحة."""
+    assert classify_doc_type("تعديل نظام الإقامة المميزة") == "تعديل"
+    assert classify_doc_type("تعديلات اللائحة التنفيذية لنظام ضريبة الدخل") == "تعديل"
+    assert classify_doc_type("تحديث معايير ومواصفات مياه الشرب") == "تعديل"
+
+
+def test_procedural_instruments_are_regulations_not_statutes():
+    """الآليات والترتيبات أدوات تنفيذية تُصنَّف لائحة لا نظامًا."""
+    assert classify_doc_type("آلية تصحيح أوضاع السجلات التجارية الفرعية") == "لائحة"
+    assert classify_doc_type("الترتيبات الخاصة بسماع الدعوى") == "لائحة"
+    assert classify_doc_type("التعليمات التنفيذية للائحة جمع التبرعات") == "لائحة"
+
+
+def test_unrecognized_title_stays_other():
+    assert classify_doc_type("ديوان الملكي السعودي تعميم رقم (٩٥٨٩)") == "أخرى"
+    assert classify_doc_type("البنود والفقرات المستحدثة") == "أخرى"

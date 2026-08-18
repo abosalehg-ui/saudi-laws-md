@@ -81,8 +81,9 @@ def test_merges_nizam_folder_into_tanzimat(tmp_path):
     assert 'category: "التنظيمات"' in new.read_text(encoding="utf-8")
 
 
-def test_bare_generic_category_goes_to_uncategorized(tmp_path):
-    # "الأنظمة السعودية" وحدها لا تميّز شيئًا — كل المستودع أنظمة سعودية
+def test_bare_generic_category_falls_back_to_document_type(tmp_path):
+    # "الأنظمة السعودية" وحدها لا تميّز شيئًا — كل المستودع أنظمة سعودية —
+    # فيُرجَع إلى نوع الوثيقة ("النظام الأساس…" ⇒ نظام ⇒ مجلد التنظيمات)
     out = tmp_path / "laws"
     old = out / "الأنظمة السعودية" / "النظام الأساس لمؤسسة.md"
     _write(old, "النظام الأساس لمؤسسة", "أخرى", "الأنظمة السعودية", "نص.")
@@ -92,7 +93,18 @@ def test_bare_generic_category_goes_to_uncategorized(tmp_path):
     assert conflicts == []
     assert moved == 1
     assert not old.parent.exists()
-    assert (out / "غير-مصنف" / "النظام الأساس لمؤسسة.md").exists()
+    assert (out / "التنظيمات" / "النظام الأساس لمؤسسة.md").exists()
+
+
+def test_unrecognized_title_still_goes_to_uncategorized(tmp_path):
+    """عنوان لا يطابق أي نمط يبقى بلا تصنيف — لا نخترع له مجالًا."""
+    out = tmp_path / "laws"
+    old = out / "الأنظمة السعودية" / "ديوان الملكي تعميم رقم (٩٥٨٩).md"
+    _write(old, "ديوان الملكي تعميم رقم (٩٥٨٩)", "أخرى", "الأنظمة السعودية", "نص.")
+
+    reclassify(out)
+
+    assert (out / "غير-مصنف" / "ديوان الملكي تعميم رقم (٩٥٨٩).md").exists()
 
 
 def test_conflict_when_destination_already_occupied(tmp_path):
