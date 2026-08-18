@@ -16,25 +16,35 @@
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from pathlib import Path
 
-from .frontmatter import read_field, set_field, set_list_field, unquote
+from .formatter import atomic_write
+from .frontmatter import read_field, read_list_field, set_field, set_list_field
 from .urls import canonical_url
 
-_LIST_FIELD_RE = re.compile(r'^also_available_from:\s*\[(.*?)\]\s*$', re.MULTILINE)
+_LIST_FIELD = "also_available_from"
 
 
-def _extract_list(text: str) -> list[str]:
-    m = _LIST_FIELD_RE.search(text)
-    if not m or not m.group(1).strip():
-        return []
-    return [unquote(v.strip().strip('"')) for v in m.group(1).split(",")]
+def _canonical_siblings(urls: list[str], own: str) -> list[str]:
+    """الروابط المطبَّعة بلا الرابط الذاتي وبلا تكرار (يحفظ الترتيب)."""
+    seen: set[str] = set()
+    result: list[str] = []
+    for url in urls:
+        canonical = canonical_url(url)
+        if canonical == own or canonical in seen:  # ربط ذاتي أو مكرر → يُسقَط
+            continue
+        seen.add(canonical)
+        result.append(canonical)
+    return result
 
 
-def canonicalize_file(path: Path) -> tuple[bool, bool]:
-    """يعيد (تغيّر source_url، تغيّر also_available_from) لملف واحد."""
+def canonicalize_file(path: Path, dry_run: bool = False) -> tuple[bool, bool]:
+    """يعيد (سيتغيّر/تغيّر source_url، ... also_available_from) لملف واحد.
+
+    مع ``dry_run`` يحسب التغييرات دون كتابة — بنفس المنطق لا بنسخة ثانية
+    منه، فلا تنحرف المعاينة عن التنفيذ.
+    """
     text = path.read_text(encoding="utf-8")
     changed_src = changed_aaf = False
 
@@ -44,22 +54,15 @@ def canonicalize_file(path: Path) -> tuple[bool, bool]:
         text = set_field(text, "source_url", own)
         changed_src = True
 
-    old_list = _extract_list(text)
+    old_list = read_list_field(text, _LIST_FIELD)
     if old_list:
-        seen: set[str] = set()
-        new_list: list[str] = []
-        for u in old_list:
-            cu = canonical_url(u)
-            if cu == own or cu in seen:  # ربط ذاتي أو مكرر → يُسقَط
-                continue
-            seen.add(cu)
-            new_list.append(cu)
+        new_list = _canonical_siblings(old_list, own)
         if new_list != old_list:
-            text = set_list_field(text, "also_available_from", new_list)
+            text = set_list_field(text, _LIST_FIELD, new_list)
             changed_aaf = True
 
-    if (changed_src or changed_aaf):
-        path.write_text(text, encoding="utf-8")
+    if (changed_src or changed_aaf) and not dry_run:
+        atomic_write(path, text)
     return changed_src, changed_aaf
 
 
@@ -74,34 +77,19 @@ def run(argv: list[str] | None = None) -> int:
 
     src_changed = aaf_changed = 0
     for path in sorted(Path(args.out).rglob("*.md")):
-        text = path.read_text(encoding="utf-8")
-        raw_src = read_field(text, "source_url")
-        own = canonical_url(raw_src) if raw_src else ""
-        will_src = bool(raw_src) and own != raw_src
-        old_list = _extract_list(text)
-        new_list, seen = [], set()
-        for u in old_list:
-            cu = canonical_url(u)
-            if cu == own or cu in seen:
-                continue
-            seen.add(cu)
-            new_list.append(cu)
-        will_aaf = bool(old_list) and new_list != old_list
-
-        if not (will_src or will_aaf):
+        if path.name == "README.md":  # فهرس مجلد مُولَّد لا وثيقة نظام
+            continue
+        changed_src, changed_aaf = canonicalize_file(path, dry_run=args.dry_run)
+        if not (changed_src or changed_aaf):
             continue
         if args.dry_run:
-            tags = []
-            if will_src:
-                tags.append("source_url")
-            if will_aaf:
-                tags.append("also_available_from")
+            tags = [
+                name for name, flag in (("source_url", changed_src), (_LIST_FIELD, changed_aaf))
+                if flag
+            ]
             print(f"سيُطبَّع [{'، '.join(tags)}]: {path}")
-        else:
-            cs, ca = canonicalize_file(path)
-            will_src, will_aaf = cs, ca
-        src_changed += int(will_src)
-        aaf_changed += int(will_aaf)
+        src_changed += int(changed_src)
+        aaf_changed += int(changed_aaf)
 
     verb = "سيُطبَّع" if args.dry_run else "طُبِّع"
     print(f"{verb} source_url: {src_changed} ملفًا", file=sys.stderr)

@@ -12,6 +12,10 @@ class FakeResponse:
         self.encoding = encoding
         self.headers: dict[str, str] = {}
 
+    @property
+    def content(self) -> bytes:
+        return self.text.encode("utf-8")
+
     def raise_for_status(self) -> None:
         if self.status_code >= 400:
             raise requests.HTTPError(f"{self.status_code} error")
@@ -31,7 +35,7 @@ def test_success_returns_text(monkeypatch):
     fetcher = _fetcher()
     calls = []
     monkeypatch.setattr(
-        fetcher.session, "get", lambda url, timeout, headers=None: calls.append(url) or FakeResponse(200, "ok")
+        fetcher.session, "get", lambda url, timeout, headers=None, **kw: calls.append(url) or FakeResponse(200, "ok")
     )
     assert fetcher.get("https://nezams.com/x/") == "ok"
     assert calls == ["https://nezams.com/x/"]
@@ -42,7 +46,7 @@ def test_retries_on_retryable_status_then_succeeds(monkeypatch):
     responses = iter([FakeResponse(503), FakeResponse(200, "ok")])
     calls = []
     monkeypatch.setattr(
-        fetcher.session, "get", lambda url, timeout, headers=None: calls.append(1) or next(responses)
+        fetcher.session, "get", lambda url, timeout, headers=None, **kw: calls.append(1) or next(responses)
     )
     assert fetcher.get("https://nezams.com/x/") == "ok"
     assert len(calls) == 2
@@ -52,7 +56,7 @@ def test_gives_up_after_max_attempts(monkeypatch):
     fetcher = _fetcher(max_attempts=3)
     calls = []
     monkeypatch.setattr(
-        fetcher.session, "get", lambda url, timeout, headers=None: calls.append(1) or FakeResponse(503)
+        fetcher.session, "get", lambda url, timeout, headers=None, **kw: calls.append(1) or FakeResponse(503)
     )
     with pytest.raises(FetchError):
         fetcher.get("https://nezams.com/x/")
@@ -63,7 +67,7 @@ def test_network_exception_is_retried(monkeypatch):
     fetcher = _fetcher(max_attempts=2)
     calls = []
 
-    def fake_get(url, timeout, headers=None):
+    def fake_get(url, timeout, headers=None, **kw):
         calls.append(1)
         raise requests.ConnectionError("boom")
 
@@ -77,7 +81,7 @@ def test_non_retryable_status_raises_immediately_without_retry(monkeypatch):
     fetcher = _fetcher(max_attempts=4)
     calls = []
     monkeypatch.setattr(
-        fetcher.session, "get", lambda url, timeout, headers=None: calls.append(1) or FakeResponse(404)
+        fetcher.session, "get", lambda url, timeout, headers=None, **kw: calls.append(1) or FakeResponse(404)
     )
     # يُلَفّ الخطأ النهائي في FetchError (عقد أخطاء موحّد) بدل HTTPError الخام
     with pytest.raises(FetchError):
@@ -88,7 +92,7 @@ def test_non_retryable_status_raises_immediately_without_retry(monkeypatch):
 def test_iso_8859_1_encoding_forced_to_utf8(monkeypatch):
     fetcher = _fetcher()
     response = FakeResponse(200, "نص", encoding="ISO-8859-1")
-    monkeypatch.setattr(fetcher.session, "get", lambda url, timeout, headers=None: response)
+    monkeypatch.setattr(fetcher.session, "get", lambda url, timeout, headers=None, **kw: response)
     fetcher.get("https://nezams.com/x/")
     assert response.encoding == "utf-8"
 
@@ -96,7 +100,7 @@ def test_iso_8859_1_encoding_forced_to_utf8(monkeypatch):
 def test_missing_encoding_forced_to_utf8(monkeypatch):
     fetcher = _fetcher()
     response = FakeResponse(200, "نص", encoding=None)
-    monkeypatch.setattr(fetcher.session, "get", lambda url, timeout, headers=None: response)
+    monkeypatch.setattr(fetcher.session, "get", lambda url, timeout, headers=None, **kw: response)
     fetcher.get("https://nezams.com/x/")
     assert response.encoding == "utf-8"
 
@@ -104,7 +108,7 @@ def test_missing_encoding_forced_to_utf8(monkeypatch):
 def test_declared_utf8_encoding_left_untouched(monkeypatch):
     fetcher = _fetcher()
     response = FakeResponse(200, "نص", encoding="utf-8")
-    monkeypatch.setattr(fetcher.session, "get", lambda url, timeout, headers=None: response)
+    monkeypatch.setattr(fetcher.session, "get", lambda url, timeout, headers=None, **kw: response)
     fetcher.get("https://nezams.com/x/")
     assert response.encoding == "utf-8"
 
@@ -113,7 +117,7 @@ def test_get_conditional_sends_etag_and_last_modified(monkeypatch):
     fetcher = _fetcher()
     seen_headers = {}
 
-    def fake_get(url, timeout, headers=None):
+    def fake_get(url, timeout, headers=None, **kw):
         seen_headers.update(headers or {})
         return FakeResponse(200, "نص جديد")
 
@@ -133,7 +137,7 @@ def test_get_conditional_no_prior_values_sends_no_conditional_headers(monkeypatc
     fetcher = _fetcher()
     seen_headers = {}
 
-    def fake_get(url, timeout, headers=None):
+    def fake_get(url, timeout, headers=None, **kw):
         seen_headers["value"] = headers
         return FakeResponse(200, "نص")
 
@@ -145,7 +149,7 @@ def test_get_conditional_no_prior_values_sends_no_conditional_headers(monkeypatc
 def test_get_conditional_304_returns_not_modified_without_text(monkeypatch):
     fetcher = _fetcher()
     response = FakeResponse(304)
-    monkeypatch.setattr(fetcher.session, "get", lambda url, timeout, headers=None: response)
+    monkeypatch.setattr(fetcher.session, "get", lambda url, timeout, headers=None, **kw: response)
     result = fetcher.get_conditional(
         "https://nezams.com/x/", etag='"abc"', last_modified="Wed, 01 Jan 2026 00:00:00 GMT"
     )
@@ -159,7 +163,7 @@ def test_get_conditional_captures_new_etag_from_response(monkeypatch):
     fetcher = _fetcher()
     response = FakeResponse(200, "نص")
     response.headers = {"ETag": '"new-etag"', "Last-Modified": "Thu, 02 Jan 2026 00:00:00 GMT"}
-    monkeypatch.setattr(fetcher.session, "get", lambda url, timeout, headers=None: response)
+    monkeypatch.setattr(fetcher.session, "get", lambda url, timeout, headers=None, **kw: response)
     result = fetcher.get_conditional("https://nezams.com/x/")
     assert result.etag == '"new-etag"'
     assert result.last_modified == "Thu, 02 Jan 2026 00:00:00 GMT"
@@ -170,7 +174,7 @@ def test_robots_disallow_blocks_fetch(monkeypatch):
     fetcher = _fetcher(respect_robots=True)
     robots = "User-agent: *\nDisallow: /private/\n"
 
-    def fake_get(url, timeout, headers=None):
+    def fake_get(url, timeout, headers=None, **kw):
         if url.endswith("/robots.txt"):
             return FakeResponse(200, robots)
         return FakeResponse(200, "محتوى")
@@ -186,7 +190,7 @@ def test_robots_absent_allows_all(monkeypatch):
     fetcher = _fetcher(respect_robots=True)
     monkeypatch.setattr(
         fetcher.session, "get",
-        lambda url, timeout, headers=None: FakeResponse(404 if url.endswith("robots.txt") else 200, "x"),
+        lambda url, timeout, headers=None, **kw: FakeResponse(404 if url.endswith("robots.txt") else 200, "x"),
     )
     assert fetcher.get("https://nezams.com/anything/") == "x"
 
@@ -197,7 +201,7 @@ def test_robots_ignored_when_disabled(monkeypatch):
     calls = []
     monkeypatch.setattr(
         fetcher.session, "get",
-        lambda url, timeout, headers=None: calls.append(url) or FakeResponse(200, "x"),
+        lambda url, timeout, headers=None, **kw: calls.append(url) or FakeResponse(200, "x"),
     )
     fetcher.get("https://nezams.com/private/x/")
     assert calls == ["https://nezams.com/private/x/"]  # بلا robots.txt

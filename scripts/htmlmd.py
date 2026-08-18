@@ -6,7 +6,21 @@
 
 from __future__ import annotations
 
+import re
+
 from bs4 import Tag
+
+# بقايا حقول CMS ثنائية اللغة تتسرّب أحيانًا إلى بداية العنوان أو الفقرة
+# ("Arabic Full Name: …"، "English صدر في: …"). تعيش هنا لا في adapter
+# qanoonsa لأن مسارَي الاستخراج (المواد والمتن النثري) يحتاجانها معًا؛
+# تطبيقها في الأول دون الثاني هو ما سرّب 12 وثيقة متنها «English صدر
+# بموجب …» إلى المُدوَّنة.
+CMS_LABEL_PREFIX_RE = re.compile(r"^(?:Arabic|English)(?:\s+Full\s+Name)?\s*:?\s+")
+
+
+def clean_text(raw: str) -> str:
+    """يوحّد المسافات ويزيل بادئة حقل الـ CMS — التنظيف المشترك لكل كتلة نصّ."""
+    return CMS_LABEL_PREFIX_RE.sub("", " ".join(raw.split()))
 
 
 def _cell_text(cell: Tag) -> str:
@@ -57,7 +71,7 @@ def prose_to_markdown(
         # نتجنّب تكرارها (الجدول يعالجه محوّله، والحاوي يُخرِج نصه كاملًا)
         if el.find_parent(["table", "li", "blockquote"]) is not None:
             continue
-        text = " ".join(el.get_text(" ", strip=True).split())
+        text = clean_text(el.get_text(" ", strip=True))
         if not text or text in skip:
             continue
         if el.name in ("h2", "h3", "h4"):

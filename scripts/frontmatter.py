@@ -13,6 +13,25 @@ import re
 _FRONT_MATTER_RE = re.compile(r"\A---\n(.*?)\n---\n", re.S)
 
 
+_LIST_VALUE_RE = re.compile(r'"((?:[^"\\]|\\.)*)"')
+
+
+def read_list_field(text: str, field: str) -> list[str]:
+    """يقرأ حقل قائمة (``field: ["a", "b"]``) من كتلة الـ front matter فقط.
+
+    مقابل ``set_list_field``؛ وُجد سابقًا مكرّرًا حرفيًا في ثلاثة سكربتات
+    (build_index، audit_duplicates، canonicalize_urls) فجُمع هنا.
+    القيم تُقرأ بمطابقة السلاسل المقتبسة لا بالتقسيم على الفاصلة، حتى لا
+    تنكسر قيمة تحوي فاصلة داخلها.
+    """
+    m = _FRONT_MATTER_RE.match(text)
+    block = m.group(1) if m else text
+    row = re.search(rf"^{re.escape(field)}:\s*\[(.*)\]\s*$", block, re.MULTILINE)
+    if not row or not row.group(1).strip():
+        return []
+    return [unquote(v) for v in _LIST_VALUE_RE.findall(row.group(1))]
+
+
 def read_field(text: str, field: str) -> str | None:
     """يقرأ قيمة حقل نصي مفرد (غير قائمة) من كتلة الـ front matter فقط.
 
@@ -33,6 +52,18 @@ def unquote(value: str) -> str:
     return value.replace('\\"', '"').replace("\\\\", "\\")
 
 
+def _sub_literal(pattern: re.Pattern[str], replacement: str, text: str) -> str:
+    """استبدال أول تطابق بنصّ **حرفي**.
+
+    ``re.sub`` يفسّر الشرطة العكسية في سلسلة الاستبدال (``\\\\`` تصير ``\\``،
+    و``\\g<1>`` تصير مرجعًا)، وقيمنا مهرَّبة أصلًا بـ ``quote`` — فتمريرها
+    نصًّا يفكّ مستوى هروب كامل ويكسر عقد الـ front matter (قيمة تنتهي
+    بشرطة عكسية كانت تُنتج اقتباسًا مهرَّبًا يبتلع نهاية السطر). تمرير
+    دالة يوقف هذا التفسير.
+    """
+    return pattern.sub(lambda _: replacement, text, count=1)
+
+
 def set_field(text: str, field: str, value: str | None) -> str:
     """يستبدل/يحذف/يضيف حقلًا نصيًا مفردًا، مقصورًا على كتلة الـ front matter."""
     m = _FRONT_MATTER_RE.match(text)
@@ -43,7 +74,7 @@ def set_field(text: str, field: str, value: str | None) -> str:
     if value:
         line = f"{field}: {quote(value)}"
         new_block = (
-            field_re.sub(line, block, count=1) if field_re.search(block) else block + "\n" + line
+            _sub_literal(field_re, line, block) if field_re.search(block) else block + "\n" + line
         )
     elif field_re.search(block):
         new_block = "\n".join(ln for ln in block.split("\n") if not field_re.match(ln))
@@ -62,7 +93,7 @@ def set_list_field(text: str, field: str, values: list[str]) -> str:
     if values:
         line = f"{field}: [" + ", ".join(quote(v) for v in values) + "]"
         new_block = (
-            field_re.sub(line, block, count=1) if field_re.search(block) else block + "\n" + line
+            _sub_literal(field_re, line, block) if field_re.search(block) else block + "\n" + line
         )
     elif field_re.search(block):
         new_block = "\n".join(ln for ln in block.split("\n") if not field_re.match(ln))

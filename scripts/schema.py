@@ -39,6 +39,10 @@ class LawDocument:
     body: str | None = None        # متن الوثائق غير المقسّمة لمواد (أدلة/معايير/جداول)، Markdown جاهز
     etag: str | None = None        # ETag آخر استجابة HTTP، لجلب شرطي لاحق (--check-updates)
     last_modified: str | None = None  # Last-Modified آخر استجابة HTTP، لنفس الغرض
+    status_note: str | None = None    # نصّ الحالة الأصلي حين يحمل تفاصيل (جهة الإلغاء والنظام البديل)
+    issued_date_hijri: str | None = None      # تاريخ الإصدار الهجري ISO قابل للفرز (1443-10-04)
+    publish_date_gregorian: str | None = None  # تاريخ النشر الميلادي ISO قابل للفرز
+    content_status: str | None = None  # "ناقص" للوثيقة التي لا نصّ لها في المصدر نفسه
 
 
 def sequence_warnings(doc: LawDocument) -> list[str]:
@@ -102,22 +106,52 @@ def clause_sequence_warnings(doc: LawDocument) -> list[str]:
 # «جميع الحقوق» و«رقم المادة» تردان فعلًا في المتون («جميع الحقوق والمزايا»،
 # «رقم المادة» كترويسة عمود في جداول التعديلات)، فاستُبدلتا بالصيغة الحرفية
 # للضجيج (footer المشاركة/الحقوق) بدل المقطع العام.
-_NOISE_PATTERNS = (
+NOISE_PATTERNS = (
     "مشاركة المادة",
     "رابط المادة",
     "النص والرابط",
     "حجم الخط",
     "عدد القراءات",
     "جميع الحقوق محفوظة",
-    # زر تبديل اللغة ملتصقًا بسطر تاريخ الإصدار: توقيع صفحات qanoonsa
-    # المكرّرة (‎/p/<id>-2/‎) التي تُعيد نشر وثيقة بلا متنها، فلا يبقى في
-    # المتن سوى هذا السطر — وثيقة جوفاء تمرّ كأنها وثيقة نثرية صحيحة
+    # زر تبديل اللغة ملتصقًا بسطر وصفي: توقيع صفحات qanoonsa التي تُعيد
+    # نشر وثيقة بلا متنها، فلا يبقى في المتن سوى هذا السطر — وثيقة جوفاء
+    # تمرّ كأنها وثيقة نثرية صحيحة. رُصدت بصيغتين: «صدر في» و«صدر بموجب»
     "English صدر في",
+    "English صدر بموجب",
 )
+
+#: الحدّ الأدنى لطول متن وثيقة تُعدّ ذات محتوى حقيقي (بالمحارف، بعد العنوان).
+#: دونه تكون الوثيقة «جوفاء»: سطر تاريخ إصدار، أو كلمة «تحميل»، أو بقايا
+#: واجهة — وكلها رُصدت فعلًا في المُدوَّنة. القيمة مضبوطة تحت أقصر متن
+#: مشروع لوحظ (أمر ملكي بتعيين/إعفاء) وفوق كل الحالات الجوفاء المرصودة.
+MIN_BODY_CHARS = 120
+
+#: قيمة ``content_status`` للوثيقة التي لا نصّ لها في المصدر نفسه (لا خلل
+#: استخراج): تُحفظ ببياناتها الوصفية وتُعلَّم صراحةً حتى يمكن ترشيحها.
+CONTENT_INCOMPLETE = "ناقص"
+
+#: متن بديل للوثيقة التي لا نصّ لها في المصدر. أصدق من ترك بقايا واجهة
+#: («English صدر بموجب …»، «تحميل») تبدو للقارئ نصًّا قانونيًا مبتورًا.
+INCOMPLETE_BODY_NOTE = (
+    "> **النصّ غير متاح آليًا.** المصدر يعرض البيانات الوصفية أعلاه دون نصّ "
+    "الوثيقة (النصّ لديه في مرفق). للاطلاع على النصّ الكامل يُرجى الرجوع إلى "
+    "رابط المصدر أعلاه أو إلى جريدة أم القرى."
+)
+
+#: نصوص متن لا تحمل أي محتوى قانوني: بقايا واجهة، وأخطاء صيغ جداول
+#: بيانات متسرّبة من المصدر، وتسميات أزرار. وثيقة كل متنها من هذا يُستبدَل
+#: متنها بـ INCOMPLETE_BODY_NOTE.
+UNINFORMATIVE_BODY_LINES = frozenset({"تحميل", "التحميل", "اضغط هنا", "English"})
+
+
+def body_length(doc: LawDocument) -> int:
+    """طول المحتوى الفعلي للوثيقة بالمحارف (مواد + متن نثري)."""
+    total = sum(len(a.text.strip()) for a in doc.articles)
+    return total + len((doc.body or "").strip())
 
 # عناوين تشبه أخطاء صيغ جداول بيانات (Excel/Google Sheets) متسرّبة من
 # الموقع المصدر نفسه، لا خللًا في الاستخراج — لوحظت حالة "#REF!" فعليًا
-_BROKEN_TITLE_RE = re.compile(r"^#(REF|N/A|VALUE|DIV/0|NAME|NULL|NUM)[!?]?$")
+BROKEN_TITLE_RE = re.compile(r"^#(REF|N/A|VALUE|DIV/0|NAME|NULL|NUM)[!?]?$")
 
 
 def validate_document(doc: LawDocument) -> list[str]:
@@ -129,7 +163,7 @@ def validate_document(doc: LawDocument) -> list[str]:
     warnings = list(sequence_warnings(doc))
     warnings.extend(clause_sequence_warnings(doc))
 
-    if _BROKEN_TITLE_RE.match(doc.title.strip()):
+    if BROKEN_TITLE_RE.match(doc.title.strip()):
         warnings.append(f"عنوان يشبه خطأ صيغة جدول بيانات: «{doc.title}»")
 
     has_content = bool(doc.articles) or bool((doc.body or "").strip())
@@ -150,10 +184,16 @@ def validate_document(doc: LawDocument) -> list[str]:
     if doc.body:
         haystacks.append(doc.body)
     for text in haystacks:
-        for pattern in _NOISE_PATTERNS:
+        for pattern in NOISE_PATTERNS:
             if pattern in text:
                 warnings.append(f"بقايا ضجيج واجهة في المتن: «{pattern}»")
                 break
+
+    if has_content and body_length(doc) < MIN_BODY_CHARS and doc.content_status is None:
+        warnings.append(
+            f"متن أقصر من الحد الأدنى ({body_length(doc)} < {MIN_BODY_CHARS} محرفًا): "
+            "يُحتمل أن الصفحة بلا نصّ (مرفق PDF) أو أن الاستخراج فشل"
+        )
 
     empty = [a.number for a in doc.articles if not a.text.strip()]
     if empty:

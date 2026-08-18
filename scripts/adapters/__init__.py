@@ -21,6 +21,16 @@ def _host_matches(host: str, allowed: str) -> bool:
     return host == allowed or host.endswith("." + allowed)
 
 
+def host_allowed(url: str) -> bool:
+    """هل مضيف الرابط ضمن مضيفات المصادر المسجّلة؟
+
+    نفس مقرّر السماح يُحقن في ``Fetcher`` ليُفحص به كل تحويل (redirect)،
+    لا الرابط الأصلي وحده.
+    """
+    host = (urlparse(url).hostname or "").lower()
+    return any(_host_matches(host, h) for a in ADAPTERS for h in a.hosts)
+
+
 def detect_source(url: str) -> str | None:
     host = (urlparse(url).hostname or "").lower()
     for adapter in ADAPTERS:

@@ -152,12 +152,36 @@ def test_validate_document_flags_noise_empty_and_no_content():
 
 
 def test_validate_document_flags_spreadsheet_error_title():
-    doc = LawDocument(title="#REF!", source="qanoonsa", source_url="", body="متن سليم.")
+    body = "متن سليم كافٍ الطول لتجاوز الحد الأدنى. " * 4
+    doc = LawDocument(title="#REF!", source="qanoonsa", source_url="", body=body)
     warnings = validate_document(doc)
     assert any("خطأ صيغة جدول بيانات" in w for w in warnings)
 
-    ok_doc = LawDocument(title="نظام العمل", source="qanoonsa", source_url="", body="متن سليم.")
+    ok_doc = LawDocument(title="نظام العمل", source="qanoonsa", source_url="", body=body)
     assert validate_document(ok_doc) == []
+
+
+def test_validate_document_flags_hollow_body():
+    """متن أقصر من الحد الأدنى = وثيقة جوفاء (سطر تاريخ أو «تحميل»)."""
+    doc = LawDocument(
+        title="أمر ملكي رقم (آ / ٥٦٧)",
+        source="qanoonsa",
+        source_url="",
+        body="صدر في: ٤ من شوال ١٤٤٣هـ",
+    )
+    assert any("متن أقصر من الحد الأدنى" in w for w in validate_document(doc))
+
+
+def test_validate_document_hollow_body_marked_is_accepted():
+    """الوثيقة المُعلَّمة صراحةً بأن مصدرها بلا نصّ لا تُحذَّر مرة أخرى."""
+    doc = LawDocument(
+        title="أمر ملكي رقم (آ / ٥٦٧)",
+        source="qanoonsa",
+        source_url="",
+        body="صدر في: ٤ من شوال ١٤٤٣هـ",
+        content_status="ناقص",
+    )
+    assert not any("متن أقصر" in w for w in validate_document(doc))
 
 
 def test_validate_document_accepts_prose_body():
@@ -166,7 +190,7 @@ def test_validate_document_accepts_prose_body():
         source="qanoonsa",
         source_url="",
         doc_type="معايير",
-        body="### قسم\n\nفقرة نظيفة.",
+        body="### قسم\n\n" + "فقرة نظيفة طويلة بما يكفي. " * 6,
     )
     assert validate_document(doc) == []
 
