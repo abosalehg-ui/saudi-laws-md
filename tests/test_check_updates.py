@@ -55,7 +55,10 @@ def test_check_updates_rewrites_and_persists_new_etag_when_modified(tmp_path, mo
     existing_file = _seed_existing(out)
     new_html = (
         "<html><h1>نظام العمل</h1>"
-        '<div class="entry-content"><h2>المادة الأولى</h2><p>نص جديد بعد التعديل.</p></div></html>'
+        '<div class="entry-content"><h2>المادة الأولى</h2><p>'
+        "نص جديد بعد التعديل: يسري هذا النظام على جميع المنشآت وفروعها "
+        "العاملة في المملكة، ويُعمل به بعد مضي تسعين يومًا من تاريخ نشره "
+        "في الجريدة الرسمية.</p></div></html>"
     )
 
     class FakeFetcher:
@@ -93,7 +96,10 @@ def test_check_updates_falls_back_to_full_fetch_for_unseen_url(tmp_path, monkeyp
     calls = {"get": 0, "get_conditional": 0}
     html = (
         "<html><h1>نظام جديد</h1>"
-        '<div class="entry-content"><h2>المادة الأولى</h2><p>نص.</p></div></html>'
+        '<div class="entry-content"><h2>المادة الأولى</h2><p>'
+        "يسري هذا النظام على جميع المنشآت وفروعها العاملة في المملكة، "
+        "ويُعمل به بعد مضي تسعين يومًا من تاريخ نشره في الجريدة الرسمية."
+        "</p></div></html>"
     )
 
     class FakeFetcher:

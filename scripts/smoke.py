@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import sys
 
-from .adapters import get_adapter
+from .adapters import get_adapter, host_allowed
 from .adapters.base import ParseError
 from .fetch import Fetcher, FetchError
 from .schema import validate_document
@@ -48,7 +48,7 @@ def check(source: str, url: str, fetcher: Fetcher) -> str | None:
 
 
 def run(argv: list[str] | None = None) -> int:
-    fetcher = Fetcher(delay=2, respect_robots=True)
+    fetcher = Fetcher(delay=2, respect_robots=True, host_allowed=host_allowed)
     failures = [msg for src, url in _SAMPLES.items() if (msg := check(src, url, fetcher))]
     for msg in failures:
         print(f"✗ {msg}", file=sys.stderr)

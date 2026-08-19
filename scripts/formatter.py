@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from .dates import hijri_year
 from .frontmatter import quote as _quote
 from .schema import LawDocument
 
@@ -14,6 +15,62 @@ _SOURCE_SITES = {
 }
 
 UNCATEGORIZED = "غير-مصنف"
+
+#: مجلدات النوع التي تتضخّم بطبيعتها (القرارات الإجرائية تتجاوز نصف
+#: المُدوَّنة وحدها) تُقسَّم بمستوى ثانٍ حسب السنة الهجرية. السبب عملي لا
+#: تجميلي: عارض الملفات في GitHub يقطع عرض المجلد عند 1000 عنصر، فكان
+#: 306 ملفًا في laws/قرار/ غير قابلة للوصول بالتصفّح إطلاقًا.
+YEAR_SPLIT_CATEGORIES = frozenset({"قرار"})
+
+#: مجلد السنة للوثيقة التي لا يُستخرج من بياناتها تاريخ هجري. لا نحوّل من
+#: الميلادي حسابيًا (التحويل تقريبي وقد يضع الوثيقة في سنة خاطئة).
+UNDATED_DIR = "غير-مؤرخ"
+
+#: حدّ إنذار لعدد ملفات المجلد الواحد، دون سقف GitHub (1000) بهامش يكفي
+#: لملاحظة النمو وتقسيم المجلد قبل أن تختفي وثائق من العرض.
+MAX_FILES_PER_DIR = 400
+
+
+def category_dir(doc: LawDocument) -> Path:
+    """المسار النسبي لمجلد الوثيقة داخل مجلد المخرجات (تصنيف + سنة عند الحاجة)."""
+    category = sanitize_filename(doc.category) if doc.category else UNCATEGORIZED
+    directory = Path(category)
+    if category in YEAR_SPLIT_CATEGORIES:
+        year = hijri_year(doc.issued_date, doc.approval_date_hijri, doc.gazette_ref)
+        directory = directory / (year or UNDATED_DIR)
+    return directory
+
+
+def atomic_write(path: Path, text: str) -> None:
+    """يكتب الملف كتابةً ذرّية: ملف مؤقت مجاور ثم ``replace``.
+
+    ``write_text`` المباشر يترك ملفًا مبتورًا إن انقطعت العملية أو امتلأ
+    القرص في منتصف الكتابة. و``Path.replace`` ذرّية على نفس نظام الملفات،
+    فالملف الوجهة إمّا محتواه القديم كاملًا أو الجديد كاملًا — أبدًا نصفه.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        tmp.replace(path)
+    except OSError:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def ensure_within(path: Path, root: Path) -> Path:
+    """يتأكد أن ``path`` داخل ``root`` — دفاع في العمق قبل أي كتابة.
+
+    اسم الملف والمجلد مشتقّان من عنوان وتصنيف **يتحكم فيهما الموقع
+    المصدر**. ``sanitize_filename`` يزيل الفواصل ويرفض «..»، لكنه دفاع
+    يجب تذكّر استدعائه في كل مسار جديد؛ هذا الحارس يجعل التسريب مستحيلًا
+    بغضّ النظر عن ذلك.
+    """
+    resolved = path.resolve()
+    root_resolved = root.resolve()
+    if root_resolved != resolved and root_resolved not in resolved.parents:
+        raise ValueError(f"مسار خارج مجلد المخرجات: {path}")
+    return path
 
 
 def prune_empty_dirs(start: Path, root: Path) -> None:
@@ -55,7 +112,9 @@ def format_document(doc: LawDocument) -> str:
         "publish_date",
         "gazette_ref",
         "status",
+        "status_note",
         "category",
+        "content_status",
     ):
         value = getattr(doc, key)
         if value:
@@ -64,6 +123,13 @@ def format_document(doc: LawDocument) -> str:
         values = getattr(doc, key)
         if values:
             lines.append(f"{key}: [" + ", ".join(_quote(v) for v in values) + "]")
+    # حقول آلية مشتقّة: صيغة ISO قابلة للفرز إلى جانب النصّ البشري الأصلي.
+    # مقتبسة عمدًا: ‎1443-10-04‎ بلا اقتباس يقرأه محلّل YAML تاريخًا
+    # **ميلاديًا** فيبني كائن date من أرقام هجرية — تحريف صامت للتاريخ.
+    for key in ("issued_date_hijri", "publish_date_gregorian"):
+        value = getattr(doc, key)
+        if value:
+            lines.append(f"{key}: {_quote(value)}")
     for key in ("etag", "last_modified"):
         value = getattr(doc, key)
         if value:
@@ -139,5 +205,5 @@ def disambiguated_filename(stem: str, discriminator: str) -> str:
 
 
 def output_path(doc: LawDocument, out_dir: Path) -> Path:
-    category = sanitize_filename(doc.category) if doc.category else UNCATEGORIZED
-    return out_dir / category / f"{sanitize_filename(doc.title)}.md"
+    path = out_dir / category_dir(doc) / f"{sanitize_filename(doc.title)}.md"
+    return ensure_within(path, out_dir)

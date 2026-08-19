@@ -70,10 +70,16 @@ def test_discover_unknown_source_raises():
 
 
 def test_site_index_and_allowed_hosts_derived_from_registry():
-    # SITE_INDEX و_ALLOWED_HOSTS يُشتقّان من سجل adapters لا يُكرّران يدويًا (A-1)
-    from scripts.adapters import ADAPTERS
-    from scripts.discover import _ALLOWED_HOSTS, SITE_INDEX
+    # SITE_INDEX ومقرّر السماح بالمضيف يُشتقّان من سجل adapters (A-1)
+    from scripts.adapters import ADAPTERS, host_allowed
+    from scripts.discover import SITE_INDEX
 
     assert SITE_INDEX == {a.source: a.sitemap_index for a in ADAPTERS if a.sitemap_index}
-    assert _ALLOWED_HOSTS == {h for a in ADAPTERS for h in a.hosts}
     assert "qanoonsa" in SITE_INDEX and "nezams" in SITE_INDEX
+    for adapter in ADAPTERS:
+        for host in adapter.hosts:
+            assert host_allowed(f"https://{host}/x/")
+            assert host_allowed(f"https://sub.{host}/x/")
+    # القائمة البيضاء لا تُخدع بمضيف يلحق اسم المصدر كلاحقة
+    assert not host_allowed("https://qanoonsa.com.evil.com/x/")
+    assert not host_allowed("https://169.254.169.254/latest/meta-data/")

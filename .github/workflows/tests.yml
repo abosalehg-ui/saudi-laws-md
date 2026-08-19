@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
 
+# أقلّ صلاحية ممكنة: هذه الـ workflows تقرأ الكود ولا تكتب شيئًا.
+# بلا هذه الكتلة تُورَث الصلاحية الافتراضية للمستودع، وقد تكون أوسع.
+permissions:
+  contents: read
+
 jobs:
   pytest:
     runs-on: ubuntu-latest
@@ -12,8 +17,8 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]   # يطابق requires-python >=3.10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -24,8 +29,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: "3.11"
           cache: pip
@@ -36,8 +41,8 @@ jobs:
   corpus:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: "3.11"
           cache: pip
@@ -46,5 +51,5 @@ jobs:
       # فحص صحة المُدوَّنة المُلتزمة: يُفشل عند الأخطاء الصلبة (عناوين معطوبة،
       # ضجيج واجهة، فقرات مكرّرة، حقول ناقصة)؛ التحذيرات تُعرض ولا تُفشل
       - run: python -m scripts.lint_corpus laws --warnings
-      # التأكد أن index.json محدَّث مع أي تغيير في laws/
+      # التأكد أن index.json وفهارس المجلدات وعدّاد README محدَّثة مع أي تغيير
       - run: python -m scripts.build_index laws --check

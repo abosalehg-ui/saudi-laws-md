@@ -3,14 +3,27 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 from urllib.robotparser import RobotFileParser
 
 import requests
 
 USER_AGENT = "saudi-laws-md/0.1 (+https://github.com/abosalehg-ui/saudi-laws-md)"
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+_REDIRECT_STATUS = {301, 302, 303, 307, 308}
+
+#: سقف حجم الاستجابة بالبايت. صفحة نظام كاملة لا تتجاوز مئات الكيلوبايتات؛
+#: ما زاد عن ذلك إمّا خطأ في المصدر وإمّا ردّ ضخم يستنزف الذاكرة، فيُرفض
+#: قبل تحميله كاملًا بدل إسقاط العملية.
+MAX_RESPONSE_BYTES = 20 * 1024 * 1024
+
+#: أقصى عدد تحويلات (redirects) نتبعها يدويًا — كلٌّ منها يُفحص مضيفه.
+MAX_REDIRECTS = 5
+
+#: أقصى انتظار نحترمه من ترويسة Retry-After (كي لا يعلّقنا خادم بقيمة ضخمة).
+MAX_RETRY_AFTER = 120
 
 
 class FetchError(Exception):
@@ -34,8 +47,13 @@ class Fetcher:
         timeout: float = 30,
         max_attempts: int = 4,
         respect_robots: bool = False,
+        host_allowed: Callable[[str], bool] | None = None,
     ):
         self.delay = delay
+        # مُقرِّر السماح بالمضيف. يُحقن من سطح التشغيل (main/discover) بقائمة
+        # المصادر البيضاء، فتُفحص وجهةُ كل تحويل لا الرابط الأصلي وحده —
+        # وإلا لكفى ردُّ 302 من مصدر مخترَق لتوجيه الطلب إلى عنوان داخلي.
+        self.host_allowed = host_allowed
         self.timeout = timeout
         self.max_attempts = max_attempts
         # احترام robots.txt اختياري (opt-in): يُفعّله سطح التشغيل (main/discover)
@@ -78,18 +96,60 @@ class Fetcher:
         if self.respect_robots and not self._robots_for(url).can_fetch(USER_AGENT, url):
             raise FetchError(f"robots.txt يمنع الزحف إلى {url}")
 
+    def _check_host(self, url: str) -> None:
+        if self.host_allowed is not None and not self.host_allowed(url):
+            raise FetchError(f"مضيف خارج القائمة المسموح بها: {url}")
+
+    def _check_size(self, response: requests.Response, url: str) -> None:
+        declared = response.headers.get("Content-Length")
+        if declared and declared.isdigit() and int(declared) > MAX_RESPONSE_BYTES:
+            raise FetchError(f"استجابة أكبر من الحد ({declared} بايت) لـ {url}")
+        if len(response.content) > MAX_RESPONSE_BYTES:
+            raise FetchError(f"استجابة أكبر من الحد ({len(response.content)} بايت) لـ {url}")
+
+    def _backoff(self, response: requests.Response | None, attempt: int) -> float:
+        """تراجع أسّي، مع احترام Retry-After إن أرسلها الخادم (أدبُ زحف)."""
+        wait = float(2 ** (attempt + 1))
+        if response is not None:
+            raw = response.headers.get("Retry-After", "")
+            if raw.strip().isdigit():
+                wait = max(wait, min(int(raw), MAX_RETRY_AFTER))
+        return wait
+
+    def _get_once(
+        self, url: str, headers: dict[str, str] | None, extra_ok_status: frozenset[int]
+    ) -> requests.Response:
+        """طلب واحد يتبع التحويلات يدويًا، فاحصًا مضيف كل وجهة قبل اتّباعها."""
+        current = url
+        for _ in range(MAX_REDIRECTS + 1):
+            self._check_allowed(current)
+            self._check_host(current)
+            self._wait()
+            response = self.session.get(
+                current, timeout=self.timeout, headers=headers, allow_redirects=False
+            )
+            if response.status_code in extra_ok_status:
+                return response
+            if response.status_code not in _REDIRECT_STATUS:
+                self._check_size(response, current)
+                return response
+            location = response.headers.get("Location", "")
+            if not location:
+                raise FetchError(f"تحويل بلا وجهة (Location) من {current}")
+            current = urljoin(current, location)
+        raise FetchError(f"تجاوز عدد التحويلات المسموح ({MAX_REDIRECTS}) بدءًا من {url}")
+
     def _request(
         self,
         url: str,
         headers: dict[str, str] | None = None,
         extra_ok_status: frozenset[int] = frozenset(),
     ) -> requests.Response:
-        self._check_allowed(url)
         last_error: str = ""
         for attempt in range(self.max_attempts):
-            self._wait()
+            response = None
             try:
-                response = self.session.get(url, timeout=self.timeout, headers=headers)
+                response = self._get_once(url, headers, extra_ok_status)
             except requests.RequestException as exc:
                 last_error = str(exc)
             else:
@@ -105,7 +165,7 @@ class Fetcher:
                     return response
                 last_error = f"HTTP {response.status_code}"
             if attempt < self.max_attempts - 1:
-                time.sleep(2 ** (attempt + 1))
+                time.sleep(self._backoff(response, attempt))
         raise FetchError(f"فشل جلب {url}: {last_error}")
 
     def get(self, url: str) -> str:

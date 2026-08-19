@@ -43,7 +43,9 @@ def test_reclassifies_decision_title_after_issuer_prefix(tmp_path):
 
     assert conflicts == []
     assert moved == 1
-    new = out / "قرار" / "وزارة الطاقة قرار رقم (١) نزع ملكية.md"
+    # مجلد «قرار» يُقسَّم بمستوى ثانٍ حسب السنة الهجرية؛ وثيقة بلا تاريخ
+    # تذهب إلى «غير-مؤرخ» (لا نحوّل من الميلادي حسابيًا)
+    new = out / "قرار" / "غير-مؤرخ" / "وزارة الطاقة قرار رقم (١) نزع ملكية.md"
     assert new.exists()
     content = new.read_text(encoding="utf-8")
     assert 'doc_type: "قرار"' in content
@@ -79,8 +81,9 @@ def test_merges_nizam_folder_into_tanzimat(tmp_path):
     assert 'category: "التنظيمات"' in new.read_text(encoding="utf-8")
 
 
-def test_bare_generic_category_goes_to_uncategorized(tmp_path):
-    # "الأنظمة السعودية" وحدها لا تميّز شيئًا — كل المستودع أنظمة سعودية
+def test_bare_generic_category_falls_back_to_document_type(tmp_path):
+    # "الأنظمة السعودية" وحدها لا تميّز شيئًا — كل المستودع أنظمة سعودية —
+    # فيُرجَع إلى نوع الوثيقة ("النظام الأساس…" ⇒ نظام ⇒ مجلد التنظيمات)
     out = tmp_path / "laws"
     old = out / "الأنظمة السعودية" / "النظام الأساس لمؤسسة.md"
     _write(old, "النظام الأساس لمؤسسة", "أخرى", "الأنظمة السعودية", "نص.")
@@ -90,7 +93,18 @@ def test_bare_generic_category_goes_to_uncategorized(tmp_path):
     assert conflicts == []
     assert moved == 1
     assert not old.parent.exists()
-    assert (out / "غير-مصنف" / "النظام الأساس لمؤسسة.md").exists()
+    assert (out / "التنظيمات" / "النظام الأساس لمؤسسة.md").exists()
+
+
+def test_unrecognized_title_still_goes_to_uncategorized(tmp_path):
+    """عنوان لا يطابق أي نمط يبقى بلا تصنيف — لا نخترع له مجالًا."""
+    out = tmp_path / "laws"
+    old = out / "الأنظمة السعودية" / "ديوان الملكي تعميم رقم (٩٥٨٩).md"
+    _write(old, "ديوان الملكي تعميم رقم (٩٥٨٩)", "أخرى", "الأنظمة السعودية", "نص.")
+
+    reclassify(out)
+
+    assert (out / "غير-مصنف" / "ديوان الملكي تعميم رقم (٩٥٨٩).md").exists()
 
 
 def test_conflict_when_destination_already_occupied(tmp_path):
@@ -117,3 +131,23 @@ def test_dry_run_does_not_write(tmp_path):
     assert moved == 1
     assert old.exists()
     assert not (out / "أنظمة المواصلات والاتصالات").exists()
+
+
+def test_decision_is_filed_under_its_hijri_year(tmp_path):
+    """تقسيم مجلد «قرار» بالسنة: لولاه لتجاوز المجلد سقف عرض GitHub."""
+    out = tmp_path / "laws"
+    old = out / "غير-مصنف" / "ق.md"
+    old.parent.mkdir(parents=True)
+    old.write_text(
+        '---\ntitle: "قرار مجلس الوزراء رقم (٨٩٠)"\n'
+        'source_url: "https://qanoonsa.com/p/9/"\ndoc_type: "أخرى"\n'
+        'issued_date: "٤ من شوال ١٤٤٣هـ الموافق: ٥ من مايو ٢٠٢٢م"\n'
+        "---\n\n# قرار\n\n## أولا\n\nنص البند.\n",
+        encoding="utf-8",
+    )
+
+    moved, _, conflicts = reclassify(out)
+
+    assert conflicts == []
+    assert moved == 1
+    assert (out / "قرار" / "1443" / "قرار مجلس الوزراء رقم (٨٩٠).md").exists()

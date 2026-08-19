@@ -14,26 +14,18 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-from urllib.parse import urlparse
 
-from .adapters import ADAPTERS
+from .adapters import ADAPTERS, host_allowed
 from .fetch import Fetcher, FetchError
 from .urls import canonical_url
 
 # مشتقّة من سجل المصادر (adapters/__init__)، لا مكرّرة يدويًا
 SITE_INDEX = {a.source: a.sitemap_index for a in ADAPTERS if a.sitemap_index}
-_ALLOWED_HOSTS = {h for a in ADAPTERS for h in a.hosts}
-
 # خرائط فرعية للتصنيفات/الوسوم/المستخدمين لا تحوي وثائق — تُستبعَد
 _SKIP_SUBMAP_RE = re.compile(r"(taxonom|category|post_tag|-tag|author|user)", re.I)
 # خريطة تعديلات المواد المفردة في nezams (تُدرَج فقط عند طلبها صراحةً)
 _UPDATE_SUBMAP_RE = re.compile(r"nezam_update", re.I)
 _LOC_RE = re.compile(r"<loc>\s*(.*?)\s*</loc>", re.S)
-
-
-def _host_ok(url: str) -> bool:
-    host = (urlparse(url).hostname or "").lower()
-    return any(host == h or host.endswith("." + h) for h in _ALLOWED_HOSTS)
 
 
 def _locs(xml: str) -> list[str]:
@@ -63,7 +55,7 @@ def discover(
     urls: list[str] = []
     seen: set[str] = set()
     for submap in submaps:
-        if not _host_ok(submap):
+        if not host_allowed(submap):
             continue
         if _SKIP_SUBMAP_RE.search(submap):
             continue
@@ -75,7 +67,7 @@ def discover(
             print(f"تعذّر جلب خريطة فرعية {submap}: {exc}", file=sys.stderr)
             continue
         for loc in _locs(xml):
-            if not _host_ok(loc):
+            if not host_allowed(loc):
                 continue
             loc = canonical_url(loc)  # هوية موحّدة تُطابق فهرس المخرجات
             if loc not in seen:
@@ -110,7 +102,11 @@ def run(argv: list[str] | None = None) -> int:
     unknown = [s for s in sources if s not in SITE_INDEX]
     if unknown:
         parser.error(f"مصادر غير معروفة: {', '.join(unknown)} (المتاح: qanoonsa، nezams)")
-    fetcher = Fetcher(delay=args.delay, respect_robots=not args.ignore_robots)
+    fetcher = Fetcher(
+        delay=args.delay,
+        respect_robots=not args.ignore_robots,
+        host_allowed=host_allowed,
+    )
     all_urls: list[str] = []
     for source in sources:
         try:
@@ -125,7 +121,10 @@ def run(argv: list[str] | None = None) -> int:
     if args.out:
         from pathlib import Path
 
-        Path(args.out).write_text(text, encoding="utf-8")
+        try:
+            Path(args.out).write_text(text, encoding="utf-8")
+        except OSError as exc:
+            parser.error(f"تعذّرت الكتابة في «{args.out}»: {exc}")
         print(f"حُفظ {len(all_urls)} رابط في {args.out}", file=sys.stderr)
     else:
         sys.stdout.write(text)

@@ -24,9 +24,9 @@ import sys
 from pathlib import Path
 
 from .classify import classify_doc_type, resolve_category
-from .formatter import UNCATEGORIZED, prune_empty_dirs, sanitize_filename
+from .formatter import atomic_write, output_path, prune_empty_dirs
 from .frontmatter import read_field, set_field, unquote
-from .schema import CLAUSE_NAMES
+from .schema import CLAUSE_NAMES, LawDocument
 
 _TITLE_RE = re.compile(r'^title:\s*"((?:[^"\\]|\\.)*)"\s*$', re.MULTILINE)
 _CLAUSE_HEADING_RE = re.compile(
@@ -53,8 +53,21 @@ def plan_move(path: Path, out_dir: Path) -> tuple[Path, str | None, str | None] 
     new_doc_type = classify_doc_type(title, source_url, is_decision)
     new_category = resolve_category(old_category, new_doc_type)
 
-    new_dir = sanitize_filename(new_category) if new_category else UNCATEGORIZED
-    new_path = out_dir / new_dir / f"{sanitize_filename(title)}.md"
+    # الوجهة تُحسب بنفس دالة الاستيراد لا بنسخة ثانية من منطق المسار، وإلا
+    # اختلفت عنها بصمت (مثل تقسيم مجلدات النوع حسب السنة) فأعاد كل استيراد
+    # لاحق الملفات إلى مسارها القديم
+    new_path = output_path(
+        LawDocument(
+            title=title,
+            source=read_field(text, "source") or "",
+            source_url=source_url,
+            category=new_category,
+            issued_date=read_field(text, "issued_date"),
+            approval_date_hijri=read_field(text, "approval_date_hijri"),
+            gazette_ref=read_field(text, "gazette_ref"),
+        ),
+        out_dir,
+    )
 
     changed_doc_type = new_doc_type if new_doc_type != old_doc_type else None
     changed_category = new_category if new_category != old_category else None
@@ -69,6 +82,8 @@ def reclassify(out_dir: Path, dry_run: bool = False) -> tuple[int, int, list[str
     touched_dirs: set[Path] = set()
 
     for path in sorted(out_dir.rglob("*.md")):
+        if path.name == "README.md":  # فهرس مجلد مُولَّد لا وثيقة نظام
+            continue
         result = plan_move(path, out_dir)
         if result is None:
             continue
@@ -95,12 +110,12 @@ def reclassify(out_dir: Path, dry_run: bool = False) -> tuple[int, int, list[str
             continue
 
         if new_path != path:
-            new_path.parent.mkdir(parents=True, exist_ok=True)
-            new_path.write_text(text, encoding="utf-8")
+            # الكتابة أولًا ثم الحذف: العكس يفقد الوثيقة إن فشلت الكتابة
+            atomic_write(new_path, text)
             path.unlink()
             touched_dirs.add(path.parent)
         else:
-            path.write_text(text, encoding="utf-8")
+            atomic_write(path, text)
 
     if not dry_run:
         for d in touched_dirs:

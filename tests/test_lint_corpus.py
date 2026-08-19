@@ -8,7 +8,10 @@ from scripts.schema import (
 
 GOOD = (
     '---\ntitle: "نظام تجريبي"\nsource_url: "https://qanoonsa.com/p/1/"\n'
-    'doc_type: "نظام"\ncategory: "ت"\n---\n\n# نظام تجريبي\n\n## المادة الأولى\n\nنص.\n'
+    'doc_type: "نظام"\ncategory: "ت"\n---\n\n# نظام تجريبي\n\n## المادة الأولى\n\n'
+    "يسري هذا النظام على جميع المنشآت وفروعها العاملة في المملكة، ويُعمل "
+    "به بعد مضي تسعين يومًا من تاريخ نشره في الجريدة الرسمية، ويلغي كل ما "
+    "يتعارض معه من أحكام.\n"
 )
 
 
@@ -50,7 +53,10 @@ def test_ui_noise_in_body_is_error(tmp_path):
 
 def test_legit_legal_text_not_flagged_as_noise(tmp_path):
     # "جميع الحقوق" و"رقم المادة" نص قانوني مشروع لا ضجيج (regression)
-    body = "يعطي عماله جميع الحقوق والمزايا. ويُشار إلى رقم المادة السابقة."
+    body = (
+        "يعطي صاحب العمل عماله جميع الحقوق والمزايا المقررة نظامًا. "
+        "ويُشار إلى رقم المادة السابقة عند الإحالة إليها في هذه اللائحة."
+    )
     p = _write(
         tmp_path / "ت" / "L.md",
         f'---\ntitle: "س"\nsource_url: "https://q/1/"\n---\n\n# س\n\n{body}\n',
@@ -77,6 +83,49 @@ def test_empty_body_is_error(tmp_path):
     )
     errors, _ = lint_file(p, tmp_path)
     assert any("بلا متن" in e for e in errors)
+
+
+def test_hollow_body_is_error(tmp_path):
+    """متن أقصر من الحدّ بلا content_status = خطأ صلب (191 حالة تسرّبت سابقًا)."""
+    p = _write(
+        tmp_path / "ت" / "أمر.md",
+        '---\ntitle: "أمر ملكي"\nsource_url: "https://q/1/"\n---\n\n'
+        "# أمر ملكي\n\nصدر في: ٤ من شوال ١٤٤٣هـ\n",
+    )
+    errors, _ = lint_file(p, tmp_path)
+    assert any("جوفاء" in e for e in errors)
+
+
+def test_hollow_body_marked_incomplete_is_accepted(tmp_path):
+    """الوثيقة المُعلَّمة صراحةً تمرّ: مصدرها بلا نصّ، لا خلل استخراج."""
+    p = _write(
+        tmp_path / "ت" / "أمر.md",
+        '---\ntitle: "أمر ملكي"\nsource_url: "https://q/1/"\n'
+        'content_status: "ناقص"\n---\n\n# أمر ملكي\n\nصدر في: ٤ من شوال ١٤٤٣هـ\n',
+    )
+    errors, _ = lint_file(p, tmp_path)
+    assert errors == []
+
+
+def test_status_outside_closed_set_is_error(tmp_path):
+    p = _write(
+        tmp_path / "ت" / "n.md",
+        '---\ntitle: "س"\nsource_url: "https://q/1/"\nstatus: "غير ساري تم إلغاءه"\n'
+        "---\n\n# س\n\n" + "نصّ قانوني كافٍ الطول لتجاوز الحد الأدنى. " * 4 + "\n",
+    )
+    errors, _ = lint_file(p, tmp_path)
+    assert any("خارج المجموعة المغلقة" in e for e in errors)
+
+
+def test_valid_status_is_accepted(tmp_path):
+    p = _write(
+        tmp_path / "ت" / "n.md",
+        '---\ntitle: "س"\nsource_url: "https://q/1/"\nstatus: "ملغى"\n'
+        'status_note: "ألغي بصدور نظام البيئة"\n'
+        "---\n\n# س\n\n" + "نصّ قانوني كافٍ الطول لتجاوز الحد الأدنى. " * 4 + "\n",
+    )
+    errors, _ = lint_file(p, tmp_path)
+    assert errors == []
 
 
 def test_run_returns_zero_on_clean_tree(tmp_path):

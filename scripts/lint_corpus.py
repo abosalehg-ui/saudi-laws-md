@@ -23,9 +23,17 @@ import sys
 from pathlib import Path
 
 from .arabic_numbers import parse_article_label
-from .formatter import UNCATEGORIZED, sanitize_filename
+from .formatter import MAX_FILES_PER_DIR, UNCATEGORIZED, category_dir
 from .frontmatter import read_field
-from .schema import _BROKEN_TITLE_RE, _NOISE_PATTERNS
+from .schema import (
+    BROKEN_TITLE_RE,
+    CONTENT_INCOMPLETE,
+    INCOMPLETE_BODY_NOTE,
+    MIN_BODY_CHARS,
+    NOISE_PATTERNS,
+)
+from .schema import LawDocument as _Doc
+from .status import VALID_STATUSES
 
 _ARTICLE_HEADING_RE = re.compile(r"^#{2,3}\s+المادة\s+(.+?)\s*$", re.MULTILINE)
 _PARA_SPLIT_RE = re.compile(r"\n\s*\n")
@@ -73,7 +81,7 @@ def lint_file(path: Path, out_dir: Path) -> tuple[list[str], list[str]]:
             errors.append(f"حقل إلزامي ناقص: {field}")
 
     title = read_field(text, "title") or ""
-    if _BROKEN_TITLE_RE.match(title.strip()):
+    if BROKEN_TITLE_RE.match(title.strip()):
         errors.append(f"عنوان معطوب: «{title}»")
 
     body = _body_after_front_matter(text)
@@ -81,10 +89,34 @@ def lint_file(path: Path, out_dir: Path) -> tuple[list[str], list[str]]:
     # صامت — validate_document يرصده لحظة السحب، لكن لا شيء كان يرصده في
     # المُدوَّنة المُلتزَمة، فتراكمت 132 وثيقة جوفاء مرّت عبر CI بصمت
     content = re.sub(r"^\s*#\s.*$", "", body, count=1, flags=re.MULTILINE).strip()
+    content_status = read_field(text, "content_status")
     if not content:
         errors.append("وثيقة بلا متن: front matter وعنوان فقط")
+    elif (
+        len(content) < MIN_BODY_CHARS or content == INCOMPLETE_BODY_NOTE
+    ) and content_status != CONTENT_INCOMPLETE:
+        # وثيقة جوفاء غير معلَّمة: إمّا عطل استخراج (يجب إصلاحه) وإمّا صفحة
+        # مصدر بلا نصّ (يجب تعليمها content_status: ناقص صراحةً). الحالتان
+        # تستوجبان تدخّلًا، فهي خطأ صلب لا تحذير — وإلا تسرّبت بصمت كما حدث
+        errors.append(
+            f"متن جوفاء ({len(content)} < {MIN_BODY_CHARS} محرفًا) بلا "
+            f"content_status: {CONTENT_INCOMPLETE}"
+        )
+    elif (
+        content_status == CONTENT_INCOMPLETE
+        and len(content) >= MIN_BODY_CHARS
+        and content != INCOMPLETE_BODY_NOTE
+    ):
+        warnings.append("معلَّمة content_status: ناقص رغم أن لها متنًا كاملًا؛ أزِل العلامة")
 
-    for pattern in _NOISE_PATTERNS:
+    status = read_field(text, "status")
+    if status and status not in VALID_STATUSES:
+        errors.append(
+            f"قيمة status خارج المجموعة المغلقة: «{status}» "
+            f"(المسموح: {'، '.join(sorted(VALID_STATUSES))})"
+        )
+
+    for pattern in NOISE_PATTERNS:
         if pattern in body:
             errors.append(f"ضجيج واجهة في المتن: «{pattern}»")
             break
@@ -92,17 +124,47 @@ def lint_file(path: Path, out_dir: Path) -> tuple[list[str], list[str]]:
         errors.append("فقرات متتالية مكرّرة (أثر ازدواج استخراج)")
 
     category = read_field(text, "category")
-    expected_dir = sanitize_filename(category) if category else UNCATEGORIZED
-    actual_dir = path.parent.name
-    if actual_dir == UNCATEGORIZED and category:
+    # الوجهة المتوقّعة تُحسب بنفس دالة الاستيراد (بما فيها تقسيم مجلدات
+    # النوع حسب السنة)، لا بمقارنة اسم المجلد الأخير وحده — وإلا عُدّت كل
+    # وثيقة في laws/قرار/<سنة>/ مخالِفة لتصنيفها
+    expected_dir = category_dir(
+        _Doc(
+            title="",
+            source="",
+            source_url="",
+            category=category,
+            issued_date=read_field(text, "issued_date"),
+            approval_date_hijri=read_field(text, "approval_date_hijri"),
+            gazette_ref=read_field(text, "gazette_ref"),
+        )
+    )
+    actual_dir = path.parent.relative_to(out_dir)
+    if actual_dir.parts[0] == UNCATEGORIZED and category:
         warnings.append("مصنَّف لكنه في غير-مصنف")
     elif category and actual_dir != expected_dir:
-        warnings.append(f"التصنيف «{category}» لا يطابق المجلد «{actual_dir}»")
-    elif not category and actual_dir != UNCATEGORIZED:
+        warnings.append(f"التصنيف «{category}» يتوقّع المجلد «{expected_dir}» لا «{actual_dir}»")
+    elif not category and actual_dir.parts[0] != UNCATEGORIZED:
         warnings.append("بلا حقل category رغم وجوده في مجلد مصنَّف")
 
     warnings.extend(_article_sequence_errors(body))
     return errors, warnings
+
+
+def _oversized_dirs(out_dir: Path) -> list[str]:
+    """مجلدات تجاوزت الحدّ المقروء.
+
+    عارض الملفات في GitHub يقطع عرض المجلد عند 1000 عنصر، فما زاد عنها
+    يصير غير قابل للوصول بالتصفّح أصلًا. الحدّ هنا أقلّ من ذلك بهامش،
+    ليصل الإنذار قبل أن تُفقد أي وثيقة من العرض.
+    """
+    oversized = []
+    for path in sorted(out_dir.rglob("*")):
+        if not path.is_dir():
+            continue
+        count = sum(1 for f in path.glob("*.md") if f.name != "README.md")
+        if count > MAX_FILES_PER_DIR:
+            oversized.append(f"{path}: {count} ملفًا (الحدّ {MAX_FILES_PER_DIR})")
+    return oversized
 
 
 def lint_corpus(out_dir: Path) -> tuple[int, dict[Path, list[str]], dict[Path, list[str]]]:
@@ -116,6 +178,9 @@ def lint_corpus(out_dir: Path) -> tuple[int, dict[Path, list[str]], dict[Path, l
             errors[path] = e
         if w:
             warnings[path] = w
+    oversized = _oversized_dirs(out_dir)
+    if oversized:
+        warnings[out_dir] = [f"مجلد أكبر من الحدّ المقروء — {item}" for item in oversized]
     return len(files), errors, warnings
 
 
