@@ -1350,10 +1350,7 @@
     "category": "أنظمة الأمن الداخلي والأحوال المدنية والأنظمة الجنائية",
     "status": "نافذ",
     "source": "nezams",
-    "source_url": "https://nezams.com/تنظيم-مركز-الإقامة-المميزة/",
-    "also_available_from": [
-      "https://qanoonsa.com/p/493502/"
-    ]
+    "source_url": "https://nezams.com/تنظيم-مركز-الإقامة-المميزة/"
   },
   {
     "path": "laws/أنظمة الأمن الداخلي والأحوال المدنية والأنظمة الجنائية/ضوابط إيقاف الخدمات.md",
@@ -1782,6 +1779,28 @@
     "status": "نافذ",
     "source": "nezams",
     "source_url": "https://nezams.com/نظام-مكتبة_الملك_فهد_الوطنية-١٤١٠هـ/"
+  },
+  {
+    "path": "laws/أنظمة البلدية والتخطيط والتطوير الحضري/نظام الإحصاء.md",
+    "title": "نظام الإحصاء",
+    "doc_type": "نظام",
+    "category": "أنظمة البلدية والتخطيط والتطوير الحضري",
+    "status": "نافذ",
+    "source": "nezams",
+    "source_url": "https://nezams.com/نظام-الإحصاء/"
+  },
+  {
+    "path": "laws/أنظمة البلدية والتخطيط والتطوير الحضري/نظام صندوق التنمية العقارية.md",
+    "title": "نظام صندوق التنمية العقارية",
+    "doc_type": "نظام",
+    "category": "أنظمة البلدية والتخطيط والتطوير الحضري",
+    "status": "نافذ",
+    "source": "nezams",
+    "source_url": "https://nezams.com/نظام-صندوق-التنمية-العقارية-2/",
+    "issued_date_hijri": "1442-05-23",
+    "also_available_from": [
+      "https://nezams.com/نظام-صندوق-التنمية-العقارية/"
+    ]
   },
   {
     "path": "laws/أنظمة التجارة والاقتصاد والاستثمار/القانون (النظام) الموحد لمكافحة الإغراق والتدابير التعويضية والوقائية لدول مجلس التعاون لدول الخليج العربية.md",
@@ -2263,6 +2282,18 @@
     "issued_date_hijri": "1439-08-08"
   },
   {
+    "path": "laws/أنظمة التجارة والاقتصاد والاستثمار/نظام السجل التجاري (نظام-السجل-التجاري-2).md",
+    "title": "نظام السجل التجاري",
+    "doc_type": "نظام",
+    "category": "أنظمة التجارة والاقتصاد والاستثمار",
+    "status": "نافذ",
+    "source": "nezams",
+    "source_url": "https://nezams.com/نظام-السجل-التجاري-2/",
+    "also_available_from": [
+      "https://nezams.com/نظام-السجل-التجاري/"
+    ]
+  },
+  {
     "path": "laws/أنظمة التجارة والاقتصاد والاستثمار/نظام السجل التجاري.md",
     "title": "نظام السجل التجاري",
     "doc_type": "نظام",
@@ -2272,8 +2303,7 @@
     "source_url": "https://nezams.com/نظام-السجل-التجاري/",
     "issued_date_hijri": "1416-02-21",
     "also_available_from": [
-      "https://nezams.com/نظام-السجل-التجاري-2/",
-      "https://qanoonsa.com/p/505003/"
+      "https://nezams.com/نظام-السجل-التجاري-2/"
     ]
   },
   {
@@ -2667,10 +2697,7 @@
     "category": "أنظمة التجارة والاقتصاد والاستثمار",
     "status": "نافذ",
     "source": "nezams",
-    "source_url": "https://nezams.com/نظام-مهنة-المحاسبة-والمراجعة/",
-    "also_available_from": [
-      "https://qanoonsa.com/p/487525/"
-    ]
+    "source_url": "https://nezams.com/نظام-مهنة-المحاسبة-والمراجعة/"
   },
   {
     "path": "laws/أنظمة التشريفات والمراسم والسلك الدبلوماسي/اللائحة التنفيذية لنظام الأوسمة السعودية.md",
@@ -3041,18 +3068,6 @@
     "source_url": "https://nezams.com/نظام-الأنشطة-المقلقة-للراحة-أو-الخطرة/"
   },
   {
-    "path": "laws/أنظمة الخدمات البلدية والتخطيط والتطوير الحضري/نظام الإحصاء.md",
-    "title": "نظام الإحصاء",
-    "doc_type": "نظام",
-    "category": "أنظمة الخدمات البلدية والتخطيط والتطوير الحضري",
-    "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-الإحصاء/",
-    "also_available_from": [
-      "https://qanoonsa.com/p/510103/"
-    ]
-  },
-  {
     "path": "laws/أنظمة الخدمات البلدية والتخطيط والتطوير الحضري/نظام الإحصاءات العامة للدولة.md",
     "title": "نظام الإحصاءات العامة للدولة",
     "doc_type": "نظام",
@@ -3151,10 +3166,7 @@
     "category": "أنظمة الخدمات البلدية والتخطيط والتطوير الحضري",
     "status": "نافذ",
     "source": "nezams",
-    "source_url": "https://nezams.com/نظام-بيع-وتأجير-مشروعات-عقارية-على-الخ/",
-    "also_available_from": [
-      "https://qanoonsa.com/p/501403/"
-    ]
+    "source_url": "https://nezams.com/نظام-بيع-وتأجير-مشروعات-عقارية-على-الخ/"
   },
   {
     "path": "laws/أنظمة الخدمات البلدية والتخطيط والتطوير الحضري/نظام تطبيق كود البناء السعودي.md",
@@ -3800,10 +3812,7 @@
     "category": "أنظمة الزراعة والمياه والثروات الحية",
     "status": "نافذ",
     "source": "nezams",
-    "source_url": "https://nezams.com/نظام-صندوق-التنمية-الزراعية-2/",
-    "also_available_from": [
-      "https://qanoonsa.com/p/499805/"
-    ]
+    "source_url": "https://nezams.com/نظام-صندوق-التنمية-الزراعية-2/"
   },
   {
     "path": "laws/أنظمة الزراعة والمياه والثروات الحية/نظام صيد الحيوانات والطيور البرية.md",
@@ -3847,18 +3856,6 @@
     "source": "nezams",
     "source_url": "https://nezams.com/نظام-مياه-الصرف-الصحي-المعالجة-وإعادة/",
     "issued_date_hijri": "1421-02-13"
-  },
-  {
-    "path": "laws/أنظمة السلطة القضائية وحقوق الإنسان/القواعد الخاصة بتنظيم شؤون الخبرة أمام المحاكم.md",
-    "title": "القواعد الخاصة بتنظيم شؤون الخبرة أمام المحاكم",
-    "doc_type": "لائحة",
-    "category": "أنظمة السلطة القضائية وحقوق الإنسان",
-    "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/القواعد-الخاصة-بتنظيم-شؤون-الخبرة-أما/",
-    "also_available_from": [
-      "https://qanoonsa.com/p/495403/"
-    ]
   },
   {
     "path": "laws/أنظمة السلطة القضائية وحقوق الإنسان/اللائحة التنفيذية لطرق الاعتراض على الأحكام.md",
@@ -4060,10 +4057,7 @@
     "category": "أنظمة السلطة القضائية وحقوق الإنسان",
     "status": "نافذ",
     "source": "nezams",
-    "source_url": "https://nezams.com/نظام-التنفيذ/",
-    "also_available_from": [
-      "https://qanoonsa.com/p/515703/"
-    ]
+    "source_url": "https://nezams.com/نظام-التنفيذ/"
   },
   {
     "path": "laws/أنظمة السلطة القضائية وحقوق الإنسان/نظام التوثيق ولائحته التنفيذية.md",
@@ -4123,10 +4117,7 @@
     "status": "نافذ",
     "source": "nezams",
     "source_url": "https://nezams.com/نظام-المعاملات-المدنية/",
-    "issued_date_hijri": "1444-11-29",
-    "also_available_from": [
-      "https://qanoonsa.com/p/498707/"
-    ]
+    "issued_date_hijri": "1444-11-29"
   },
   {
     "path": "laws/أنظمة السلطة القضائية وحقوق الإنسان/نظام النيابة العامة.md",
@@ -4268,6 +4259,20 @@
     "issued_date_hijri": "1436-01-09"
   },
   {
+    "path": "laws/أنظمة السياحة والآثار/نظام السياحة (نظام-السياحة).md",
+    "title": "نظام السياحة",
+    "doc_type": "نظام",
+    "category": "أنظمة السياحة والآثار",
+    "status": "ملغى",
+    "status_note": "غير ساري، ألغي بصدور نظام السياحة الصادر بالمرسوم الملكي رقم (م/١٨) وتاريخ ١٤٤٤/١/٢٦هـ",
+    "source": "nezams",
+    "source_url": "https://nezams.com/نظام-السياحة/",
+    "issued_date_hijri": "1436-01-09",
+    "also_available_from": [
+      "https://nezams.com/نظام-السياحة-2/"
+    ]
+  },
+  {
     "path": "laws/أنظمة السياحة والآثار/نظام السياحة.md",
     "title": "نظام السياحة",
     "doc_type": "نظام",
@@ -4277,7 +4282,7 @@
     "source_url": "https://nezams.com/نظام-السياحة-2/",
     "issued_date_hijri": "1444-01-26",
     "also_available_from": [
-      "https://qanoonsa.com/p/494603/"
+      "https://nezams.com/نظام-السياحة/"
     ]
   },
   {
@@ -5036,10 +5041,7 @@
     "status": "نافذ",
     "source": "nezams",
     "source_url": "https://nezams.com/اللائحة-التنفيذية-لضبط-أعمال-تفتيش-ال/",
-    "issued_date_hijri": "1428-08-14",
-    "also_available_from": [
-      "https://qanoonsa.com/p/508205/"
-    ]
+    "issued_date_hijri": "1428-08-14"
   },
   {
     "path": "laws/أنظمة العمل والرعاية الاجتماعية/اللائحة التنفيذية لنظام الأحداث.md",
@@ -5228,10 +5230,7 @@
     "category": "أنظمة العمل والرعاية الاجتماعية",
     "status": "نافذ",
     "source": "nezams",
-    "source_url": "https://nezams.com/نظام-التأمينات-الاجتماعية-2/",
-    "also_available_from": [
-      "https://qanoonsa.com/p/503804/"
-    ]
+    "source_url": "https://nezams.com/نظام-التأمينات-الاجتماعية-2/"
   },
   {
     "path": "laws/أنظمة العمل والرعاية الاجتماعية/نظام الجمعيات التعاونية.md",
@@ -5463,18 +5462,6 @@
     "issued_date_hijri": "1391-02-11"
   },
   {
-    "path": "laws/أنظمة المال والرقابة/نظام الرقابة المالية.md",
-    "title": "نظام الرقابة المالية",
-    "doc_type": "نظام",
-    "category": "أنظمة المال والرقابة",
-    "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-الرقابة-المالية/",
-    "also_available_from": [
-      "https://qanoonsa.com/p/512906/"
-    ]
-  },
-  {
     "path": "laws/أنظمة المال والرقابة/نظام الرهن العقاري المسجل.md",
     "title": "نظام الرهن العقاري المسجل",
     "doc_type": "نظام",
@@ -5610,10 +5597,7 @@
     "category": "أنظمة المال والرقابة",
     "status": "نافذ",
     "source": "nezams",
-    "source_url": "https://nezams.com/نظام-هيئة-الرقابة-ومكافحة-الفساد/",
-    "also_available_from": [
-      "https://qanoonsa.com/p/504204/"
-    ]
+    "source_url": "https://nezams.com/نظام-هيئة-الرقابة-ومكافحة-الفساد/"
   },
   {
     "path": "laws/أنظمة المال والرقابة/نظام وظائف مباشرة الأموال العامة.md",
@@ -5624,6 +5608,15 @@
     "source": "nezams",
     "source_url": "https://nezams.com/نظام-وظائف-مباشرة-الأموال-العامة/",
     "issued_date_hijri": "1436-02-23"
+  },
+  {
+    "path": "laws/أنظمة المال والمراقبة/نظام الرقابة المالية.md",
+    "title": "نظام الرقابة المالية",
+    "doc_type": "نظام",
+    "category": "أنظمة المال والمراقبة",
+    "status": "نافذ",
+    "source": "nezams",
+    "source_url": "https://nezams.com/نظام-الرقابة-المالية/"
   },
   {
     "path": "laws/أنظمة المواصلات والاتصالات/آلية تعديل أوضاع منشآت النقل البري على الطرق وفق أحكام نظام النقل البرى على الطرق واللائحة التنفيذية لأنشطة ت.md",
@@ -7104,7 +7097,10 @@
     "category": "التنظيمات",
     "source": "qanoonsa",
     "source_url": "https://qanoonsa.com/p/514910/",
-    "publish_date_gregorian": "2026-03-13"
+    "publish_date_gregorian": "2026-03-13",
+    "also_available_from": [
+      "https://nezams.com/تنظيم-المركز-السعودي-للتنافسية-والأع/"
+    ]
   },
   {
     "path": "laws/التنظيمات/تنظيم المركز السعودي للشراكات الاستراتيجية الدولية.md",
@@ -8069,6 +8065,18 @@
     "source": "qanoonsa",
     "source_url": "https://qanoonsa.com/p/497707/",
     "publish_date_gregorian": "2023-04-07"
+  },
+  {
+    "path": "laws/تنظيمات/تنظيم المركز السعودي للتنافسية والأعمال.md",
+    "title": "تنظيم المركز السعودي للتنافسية والأعمال",
+    "doc_type": "نظام",
+    "category": "تنظيمات",
+    "status": "نافذ",
+    "source": "nezams",
+    "source_url": "https://nezams.com/تنظيم-المركز-السعودي-للتنافسية-والأع/",
+    "also_available_from": [
+      "https://qanoonsa.com/p/514910/"
+    ]
   },
   {
     "path": "laws/غير-مصنف/آلية تعديل أوضاع منشآت النقل البري على الطرق وفق أحكام نظام النقل البري على الطرق واللائحة التنفيذية لأنشطة ا.md",
@@ -23744,10 +23752,7 @@
     "category": "لائحة",
     "status": "نافذ",
     "source": "nezams",
-    "source_url": "https://nezams.com/لائحة-الاتصالات-الرسمية-والمحافظة-عل/",
-    "also_available_from": [
-      "https://qanoonsa.com/p/501907/"
-    ]
+    "source_url": "https://nezams.com/لائحة-الاتصالات-الرسمية-والمحافظة-عل/"
   },
   {
     "path": "laws/لائحة/لائحة التراخيص لمقدمي خدمات كفاءة وترشيد المياه.md",
@@ -24172,6 +24177,15 @@
     "source": "qanoonsa",
     "source_url": "https://qanoonsa.com/p/507207/",
     "publish_date_gregorian": "2025-02-21"
+  },
+  {
+    "path": "laws/لوائح وزارة العدل/القواعد الخاصة بتنظيم شؤون الخبرة أمام المحاكم.md",
+    "title": "القواعد الخاصة بتنظيم شؤون الخبرة أمام المحاكم",
+    "doc_type": "لائحة",
+    "category": "لوائح وزارة العدل",
+    "status": "نافذ",
+    "source": "nezams",
+    "source_url": "https://nezams.com/القواعد-الخاصة-بتنظيم-شؤون-الخبرة-أما/"
   },
   {
     "path": "laws/مرسوم ملكي/مرسوم ملكي رقم ( م ٤٨) الموافقة على مذكرة تفاهم في مجال السياحة بين المملكة والبرازيل.md",
