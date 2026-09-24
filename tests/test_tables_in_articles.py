@@ -95,3 +95,11 @@ def test_missing_table_lines_accepts_table_and_attached_schedule():
 
 def test_missing_table_at_end_of_document_is_detected():
     assert missing_table_lines("تحدد الغرامات وفق الجداول التالية:\n") != []
+
+
+def test_explicit_missing_table_note_is_acknowledged_not_silent():
+    from scripts.schema import MISSING_TABLE_NOTE
+
+    text = f"وفق الجدول الآتي:\n\n{MISSING_TABLE_NOTE} يُرجى الرجوع إلى المصدر.\n\nوللوزارة تعديله."
+    assert missing_table_lines(text) == []
+    assert missing_table_lines(text, acknowledged=True) == ["وفق الجدول الآتي:"]

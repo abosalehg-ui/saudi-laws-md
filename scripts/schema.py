@@ -175,17 +175,28 @@ _TABLE_PROMISE_RE = re.compile(
 )
 
 
-def missing_table_lines(text: str) -> list[str]:
+#: ملاحظة صريحة تحلّ محلّ جدول تعذّر استخراجه، فيعرف القارئ أن المادة
+#: ناقصة بدل أن تبدو كاملة. الحارس يقبلها (تحذيرًا لا خطأً) إلى أن يُعاد
+#: سحب الوثيقة بالمحوّل الذي يستخرج الجداول.
+MISSING_TABLE_NOTE = "> **الجدول غير متاح في هذه النسخة.**"
+
+
+def missing_table_lines(text: str, acknowledged: bool = False) -> list[str]:
     """أسطر تعِد بجدول («الجدول الآتي:») ولا يليها جدول Markdown.
 
     هذا توقيع عطل الاستخراج الذي كان يُسقط جداول المواد بصمت: مادة تنتهي
-    بنقطتين ثم تنتقل مباشرة إلى الفقرة أو المادة التالية.
+    بنقطتين ثم تنتقل مباشرة إلى الفقرة أو المادة التالية. سطر تليه
+    ``MISSING_TABLE_NOTE`` لا يُعدّ صامتًا؛ ``acknowledged=True`` يعيد هذه
+    الأسطر المعلَّمة بدل الصامتة.
     """
-    missing = []
+    found = []
     for m in _TABLE_PROMISE_RE.finditer(text):
-        if not text[m.end() :].lstrip().startswith("|"):
-            missing.append(m.group(0).strip())
-    return missing
+        rest = text[m.end() :].lstrip()
+        if rest.startswith("|"):
+            continue
+        if rest.startswith(MISSING_TABLE_NOTE) == acknowledged:
+            found.append(m.group(0).strip())
+    return found
 
 
 def body_length(doc: LawDocument) -> int:

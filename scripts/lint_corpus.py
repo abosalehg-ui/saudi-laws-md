@@ -110,6 +110,8 @@ def lint_file(path: Path, out_dir: Path) -> tuple[list[str], list[str]]:
     # للقارئ — أسوأ من مادة غائبة، فهي خطأ صلب لا تحذير
     for line in missing_table_lines(body):
         errors.append(f"سطر يعِد بجدول لا يليه جدول: «{line[:80]}»")
+    for line in missing_table_lines(body, acknowledged=True):
+        warnings.append(f"جدول معلَّم بأنه غير متاح (أعِد سحب الوثيقة): «{line[:60]}»")
 
     category = read_field(text, "category")
     # الوجهة المتوقّعة تُحسب بنفس دالة الاستيراد (بما فيها تقسيم مجلدات
