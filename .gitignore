@@ -3,3 +3,5 @@ __pycache__/
 .pytest_cache/
 logs/
 saudi_laws_md.egg-info/
+.coverage
+htmlcov/
