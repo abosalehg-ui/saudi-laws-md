@@ -20,24 +20,29 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-from .frontmatter import read_field, read_list_field, set_list_field, unquote
+from .formatter import atomic_write
+from .frontmatter import read_field, read_list_field, set_list_field
 from .urls import canonical_url
 
 _FIELD = "also_available_from"
 
 
-def find_duplicate_groups(out_dir: Path) -> dict[str, list[Path]]:
-    """يجمع مسارات الملفات حسب العنوان؛ يعيد فقط المجموعات التي تضم أكثر من ملف."""
+def _titles(out_dir: Path) -> dict[str, list[Path]]:
+    """كل ملفات الوثائق مجمَّعة حسب العنوان."""
     by_title: dict[str, list[Path]] = defaultdict(list)
     for path in sorted(out_dir.rglob("*.md")):
         if path.name == "README.md":  # فهرس مجلد مُولَّد لا وثيقة نظام
             continue
-        text = path.read_text(encoding="utf-8")
-        title = read_field(text, "title")
+        title = read_field(path.read_text(encoding="utf-8"), "title")
         if title is None:
             continue
-        by_title[unquote(title)].append(path)
-    return {title: paths for title, paths in by_title.items() if len(paths) > 1}
+        by_title[title].append(path)
+    return by_title
+
+
+def find_duplicate_groups(out_dir: Path) -> dict[str, list[Path]]:
+    """يجمع مسارات الملفات حسب العنوان؛ يعيد فقط المجموعات التي تضم أكثر من ملف."""
+    return {title: paths for title, paths in _titles(out_dir).items() if len(paths) > 1}
 
 
 def annotate_duplicates(out_dir: Path, dry_run: bool = False) -> tuple[int, int]:
@@ -45,8 +50,23 @@ def annotate_duplicates(out_dir: Path, dry_run: bool = False) -> tuple[int, int]
 
     يعيد (عدد المجموعات، عدد الملفات المُحدَّثة).
     """
-    groups = find_duplicate_groups(out_dir)
+    by_title = _titles(out_dir)
+    groups = {title: paths for title, paths in by_title.items() if len(paths) > 1}
     files_touched = 0
+    # ملف كان مزدوجًا ثم حُذفت نسخته الأخرى (أو تغيّر عنوانها): الحقل فيه
+    # يشير إلى نسخة لم تعد موجودة، فيُحذف بدل أن يبقى رابطًا يتيمًا
+    for paths in by_title.values():
+        if len(paths) != 1:
+            continue
+        path = paths[0]
+        text = path.read_text(encoding="utf-8")
+        if not read_list_field(text, _FIELD):
+            continue
+        files_touched += 1
+        if dry_run:
+            print(f"سيُحذف {_FIELD} اليتيم: {path}")
+        else:
+            atomic_write(path, set_list_field(text, _FIELD, []))
     for paths in groups.values():
         urls = {}
         for path in paths:
@@ -57,9 +77,7 @@ def annotate_duplicates(out_dir: Path, dry_run: bool = False) -> tuple[int, int]
             # روابط النسخ الأخرى فقط، مطبَّعة، وبلا الرابط الذاتي (منعًا
             # لربط الوثيقة بنفسها عند اختلاف ترميز رابطها عن نسخة أخرى)
             own = urls[path]
-            siblings = sorted(
-                {u for p, u in urls.items() if p != path and u and u != own}
-            )
+            siblings = sorted({u for p, u in urls.items() if p != path and u and u != own})
             if not siblings:
                 continue
             text = path.read_text(encoding="utf-8")
@@ -70,7 +88,7 @@ def annotate_duplicates(out_dir: Path, dry_run: bool = False) -> tuple[int, int]
             if dry_run:
                 print(f"سيُحدَّث: {path} ← يرتبط بـ {len(siblings)} نسخة أخرى")
                 continue
-            path.write_text(new_text, encoding="utf-8")
+            atomic_write(path, new_text)
     return len(groups), files_touched
 
 

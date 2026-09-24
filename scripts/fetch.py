@@ -15,9 +15,12 @@ _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 _REDIRECT_STATUS = {301, 302, 303, 307, 308}
 
 #: سقف حجم الاستجابة بالبايت. صفحة نظام كاملة لا تتجاوز مئات الكيلوبايتات؛
-#: ما زاد عن ذلك إمّا خطأ في المصدر وإمّا ردّ ضخم يستنزف الذاكرة، فيُرفض
-#: قبل تحميله كاملًا بدل إسقاط العملية.
+#: ما زاد عن ذلك إمّا خطأ في المصدر وإمّا ردّ ضخم يستنزف الذاكرة. الجسم
+#: يُقرأ دفقًا (stream) ويُقطع عند تجاوز السقف، فلا يُحمَّل كاملًا أبدًا —
+#: فحص Content-Length وحده لا يكفي لأن الرد المجزّأ (chunked) لا يعلنه.
 MAX_RESPONSE_BYTES = 20 * 1024 * 1024
+
+_CHUNK_BYTES = 64 * 1024
 
 #: أقصى عدد تحويلات (redirects) نتبعها يدويًا — كلٌّ منها يُفحص مضيفه.
 MAX_REDIRECTS = 5
@@ -62,9 +65,7 @@ class Fetcher:
         self._robots: dict[str, RobotFileParser] = {}
         self._last_request: float | None = None
         self.session = requests.Session()
-        self.session.headers.update(
-            {"User-Agent": USER_AGENT, "Accept-Language": "ar,en;q=0.8"}
-        )
+        self.session.headers.update({"User-Agent": USER_AGENT, "Accept-Language": "ar,en;q=0.8"})
 
     def _wait(self) -> None:
         if self._last_request is not None:
@@ -81,13 +82,15 @@ class Fetcher:
             rp = RobotFileParser()
             robots_url = f"{parts.scheme}://{host}/robots.txt"
             try:
-                self._wait()
-                resp = self.session.get(robots_url, timeout=self.timeout)
+                # عبر _get_once لا session.get مباشرةً: التحويلات تُتَّبع
+                # يدويًا ويُفحص مضيف كل وجهة، فلا يوجّه مصدرٌ مخترَق طلبَ
+                # robots.txt إلى عنوان داخلي. (check_robots=False يمنع الدوران.)
+                resp = self._get_once(robots_url, None, frozenset(), check_robots=False)
                 if resp.status_code == 200:
                     rp.parse(resp.text.splitlines())
                 else:
                     rp.allow_all = True  # لا robots.txt ⇒ يُسمح بالكل
-            except requests.RequestException:
+            except (requests.RequestException, FetchError):
                 rp.allow_all = True  # تعذّر جلبه ⇒ لا نمنع أنفسنا
             self._robots[host] = rp
         return rp
@@ -100,12 +103,26 @@ class Fetcher:
         if self.host_allowed is not None and not self.host_allowed(url):
             raise FetchError(f"مضيف خارج القائمة المسموح بها: {url}")
 
-    def _check_size(self, response: requests.Response, url: str) -> None:
+    def _read_capped(self, response: requests.Response, url: str) -> None:
+        """يقرأ جسم الاستجابة دفقًا ويرفض ما تجاوز ``MAX_RESPONSE_BYTES``.
+
+        يُقطع التنزيل عند تجاوز السقف بدل تحميل الجسم كله ثم قياسه. الناتج
+        يُثبَّت في الاستجابة فتعمل ``.text``/``.content`` كالمعتاد بعدها.
+        """
         declared = response.headers.get("Content-Length")
         if declared and declared.isdigit() and int(declared) > MAX_RESPONSE_BYTES:
+            response.close()
             raise FetchError(f"استجابة أكبر من الحد ({declared} بايت) لـ {url}")
-        if len(response.content) > MAX_RESPONSE_BYTES:
-            raise FetchError(f"استجابة أكبر من الحد ({len(response.content)} بايت) لـ {url}")
+        chunks: list[bytes] = []
+        total = 0
+        for chunk in response.iter_content(chunk_size=_CHUNK_BYTES):
+            total += len(chunk)
+            if total > MAX_RESPONSE_BYTES:
+                response.close()
+                raise FetchError(f"استجابة أكبر من الحد (تجاوزت {MAX_RESPONSE_BYTES} بايت) لـ {url}")
+            chunks.append(chunk)
+        response._content = b"".join(chunks)
+        response._content_consumed = True
 
     def _backoff(self, response: requests.Response | None, attempt: int) -> float:
         """تراجع أسّي، مع احترام Retry-After إن أرسلها الخادم (أدبُ زحف)."""
@@ -117,22 +134,32 @@ class Fetcher:
         return wait
 
     def _get_once(
-        self, url: str, headers: dict[str, str] | None, extra_ok_status: frozenset[int]
+        self,
+        url: str,
+        headers: dict[str, str] | None,
+        extra_ok_status: frozenset[int],
+        check_robots: bool = True,
     ) -> requests.Response:
         """طلب واحد يتبع التحويلات يدويًا، فاحصًا مضيف كل وجهة قبل اتّباعها."""
         current = url
         for _ in range(MAX_REDIRECTS + 1):
-            self._check_allowed(current)
+            if check_robots:
+                self._check_allowed(current)
             self._check_host(current)
             self._wait()
             response = self.session.get(
-                current, timeout=self.timeout, headers=headers, allow_redirects=False
+                current,
+                timeout=self.timeout,
+                headers=headers,
+                allow_redirects=False,
+                stream=True,
             )
             if response.status_code in extra_ok_status:
                 return response
             if response.status_code not in _REDIRECT_STATUS:
-                self._check_size(response, current)
+                self._read_capped(response, current)
                 return response
+            response.close()
             location = response.headers.get("Location", "")
             if not location:
                 raise FetchError(f"تحويل بلا وجهة (Location) من {current}")
@@ -171,9 +198,7 @@ class Fetcher:
     def get(self, url: str) -> str:
         return self._request(url).text
 
-    def get_conditional(
-        self, url: str, etag: str | None = None, last_modified: str | None = None
-    ) -> FetchResult:
+    def get_conditional(self, url: str, etag: str | None = None, last_modified: str | None = None) -> FetchResult:
         """يجلب الصفحة، مرسِلًا If-None-Match/If-Modified-Since إن توفّرا.
 
         عند رد 304 (لم يتغيّر المحتوى منذ آخر جلب) يعيد نتيجة بلا نص بدل

@@ -83,10 +83,7 @@ def run(argv: list[str] | None = None) -> int:
         if not (changed_src or changed_aaf):
             continue
         if args.dry_run:
-            tags = [
-                name for name, flag in (("source_url", changed_src), (_LIST_FIELD, changed_aaf))
-                if flag
-            ]
+            tags = [name for name, flag in (("source_url", changed_src), (_LIST_FIELD, changed_aaf)) if flag]
             print(f"سيُطبَّع [{'، '.join(tags)}]: {path}")
         src_changed += int(changed_src)
         aaf_changed += int(changed_aaf)

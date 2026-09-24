@@ -15,8 +15,7 @@ from pathlib import Path
 import pytest
 
 from scripts.formatter import MAX_FILES_PER_DIR
-from scripts.frontmatter import read_field
-from scripts.migrate_corpus import body_text
+from scripts.frontmatter import body_text, read_field
 from scripts.schema import CONTENT_INCOMPLETE, INCOMPLETE_BODY_NOTE, MIN_BODY_CHARS, NOISE_PATTERNS
 from scripts.status import VALID_STATUSES
 
@@ -41,16 +40,17 @@ def test_corpus_is_not_empty(docs):
 
 def test_every_document_has_front_matter_and_required_fields(docs):
     missing = [
-        str(p) for p, text in docs
-        if not text.startswith("---\n") or not read_field(text, "title")
-        or not read_field(text, "source_url")
+        str(p)
+        for p, text in docs
+        if not text.startswith("---\n") or not read_field(text, "title") or not read_field(text, "source_url")
     ]
     assert missing == [], f"وثائق بلا front matter أو بحقول إلزامية ناقصة: {missing[:5]}"
 
 
 def test_status_values_are_from_the_closed_set(docs):
     bad = {
-        read_field(text, "status") for _, text in docs
+        read_field(text, "status")
+        for _, text in docs
         if read_field(text, "status") and read_field(text, "status") not in VALID_STATUSES
     }
     assert bad == set(), f"قيم status خارج المجموعة المغلقة: {sorted(bad)[:5]}"
@@ -58,18 +58,15 @@ def test_status_values_are_from_the_closed_set(docs):
 
 def test_no_interface_noise_leaks_into_any_body(docs):
     """أثر ازدواج/فشل استخراج: بقايا واجهة داخل نصّ قانوني."""
-    offenders = [
-        (str(p), pattern) for p, text in docs
-        for pattern in NOISE_PATTERNS
-        if pattern in body_text(text)
-    ]
+    offenders = [(str(p), pattern) for p, text in docs for pattern in NOISE_PATTERNS if pattern in body_text(text)]
     assert offenders == [], f"ضجيج واجهة في المتن: {offenders[:5]}"
 
 
 def test_hollow_documents_are_explicitly_marked(docs):
     """الوثيقة بلا نصّ تُعلَّم صراحةً؛ بلا ذلك تبدو نصًّا قانونيًا مبتورًا."""
     unmarked = [
-        str(p) for p, text in docs
+        str(p)
+        for p, text in docs
         if (len(body_text(text)) < MIN_BODY_CHARS or body_text(text) == INCOMPLETE_BODY_NOTE)
         and read_field(text, "content_status") != CONTENT_INCOMPLETE
     ]
@@ -79,7 +76,8 @@ def test_hollow_documents_are_explicitly_marked(docs):
 def test_incomplete_mark_is_not_stale(docs):
     """علامة النقص لا تبقى على وثيقة صار لها متن كامل."""
     stale = [
-        str(p) for p, text in docs
+        str(p)
+        for p, text in docs
         if read_field(text, "content_status") == CONTENT_INCOMPLETE
         and len(body_text(text)) >= MIN_BODY_CHARS
         and body_text(text) != INCOMPLETE_BODY_NOTE
@@ -94,8 +92,7 @@ def test_iso_date_fields_are_well_formed(docs):
         for p, text in docs
         for field in ("issued_date_hijri", "publish_date_gregorian")
         if (value := read_field(text, field))
-        and not (len(value) == 10 and value[4] == value[7] == "-" and
-                 value.replace("-", "").isdigit())
+        and not (len(value) == 10 and value[4] == value[7] == "-" and value.replace("-", "").isdigit())
     ]
     assert bad == [], f"تواريخ آلية بصيغة غير ISO: {bad[:5]}"
 
@@ -103,7 +100,9 @@ def test_iso_date_fields_are_well_formed(docs):
 def test_no_directory_exceeds_the_browsable_limit():
     """عارض GitHub يقطع المجلد عند 1000 عنصر؛ ما فوق الحدّ يصير غير مرئي."""
     oversized = [
-        (str(d), n) for d in CORPUS.rglob("*") if d.is_dir()
+        (str(d), n)
+        for d in CORPUS.rglob("*")
+        if d.is_dir()
         if (n := sum(1 for f in d.glob("*.md") if f.name != "README.md")) > MAX_FILES_PER_DIR
     ]
     assert oversized == [], f"مجلدات تجاوزت الحدّ المقروء: {oversized}"

@@ -23,5 +23,4 @@ class BaseAdapter(ABC):
     sitemap_index: ClassVar[str] = ""
 
     @abstractmethod
-    def parse(self, html: str, url: str) -> LawDocument:
-        ...
+    def parse(self, html: str, url: str) -> LawDocument: ...

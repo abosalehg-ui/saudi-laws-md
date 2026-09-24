@@ -30,7 +30,7 @@ def _seed(out, url):
     path.write_text(
         f'---\ntitle: "نظام العمل"\nsource: qanoonsa\nsource_url: "{url}"\n'
         'doc_type: "نظام"\ncategory: "نظام"\netag: "abc123"\n'
-        'retrieved_at: 2020-01-01\n---\n\n# نظام العمل\n\n## المادة الأولى\n\nقديم.\n',
+        "retrieved_at: 2020-01-01\n---\n\n# نظام العمل\n\n## المادة الأولى\n\nقديم.\n",
         encoding="utf-8",
     )
     return path
@@ -56,10 +56,15 @@ def test_resume_with_check_updates_still_checks_known_links(tmp_path, monkeypatc
     monkeypatch.setattr(main_mod, "Fetcher", FakeFetcher)
     monkeypatch.chdir(tmp_path)
 
-    code = run([
-        "https://qanoonsa.com/p/1/",
-        "--out", str(out), "--resume", "--check-updates",
-    ])
+    code = run(
+        [
+            "https://qanoonsa.com/p/1/",
+            "--out",
+            str(out),
+            "--resume",
+            "--check-updates",
+        ]
+    )
     assert code == 0
     # لم يُتخطَّ: مرّ فعلًا على الجلب الشرطي بالـ etag المحفوظ
     assert checked == [("https://qanoonsa.com/p/1/", "abc123")]

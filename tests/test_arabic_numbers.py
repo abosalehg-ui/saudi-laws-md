@@ -53,12 +53,15 @@ def test_unparseable():
     assert is_bis is False
 
 
-@pytest.mark.parametrize("label,expected", [
-    ("الثالثة نطاق سريان اللائحة", 3),
-    ("الحادية عشرة سجل المرخص لهم", 11),
-    ("العشرون الإعفاء", 20),
-    ("الحادية والعشرون قواعد التراخيص", 21),
-])
+@pytest.mark.parametrize(
+    "label,expected",
+    [
+        ("الثالثة نطاق سريان اللائحة", 3),
+        ("الحادية عشرة سجل المرخص لهم", 11),
+        ("العشرون الإعفاء", 20),
+        ("الحادية والعشرون قواعد التراخيص", 21),
+    ],
+)
 def test_ordinal_with_embedded_subtitle(label, expected):
     # لوائح تدمج عنوان المادة في الترويسة؛ نشتق الرقم من البادئة الترتيبية
     number, is_bis = parse_article_label(label)
@@ -72,10 +75,7 @@ def test_subtitle_that_is_not_ordinal_still_none():
 
 
 def test_label_regex_in_running_text():
-    text = (
-        "المادة الحادية عشرة بعد المائة : نص المادة هنا. "
-        "المادة ٧٩ مكرر : نص آخر."
-    )
+    text = "المادة الحادية عشرة بعد المائة : نص المادة هنا. المادة ٧٩ مكرر : نص آخر."
     labels = [m.group(1) for m in ARTICLE_LABEL_RE.finditer(text)]
     assert labels == ["الحادية عشرة بعد المائة", "٧٩ مكرر"]
 

@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from pathlib import Path
 
 from .adapters import ADAPTERS, host_allowed
 from .fetch import Fetcher, FetchError
@@ -26,6 +27,9 @@ _SKIP_SUBMAP_RE = re.compile(r"(taxonom|category|post_tag|-tag|author|user)", re
 # خريطة تعديلات المواد المفردة في nezams (تُدرَج فقط عند طلبها صراحةً)
 _UPDATE_SUBMAP_RE = re.compile(r"nezam_update", re.I)
 _LOC_RE = re.compile(r"<loc>\s*(.*?)\s*</loc>", re.S)
+#: سقف عدد الخرائط الفرعية المجلوبة لمصدر واحد — يحمي من فهرس دائري أو
+#: متضخّم (فهرس يشير إلى نفسه أو إلى آلاف الفهارس).
+MAX_SUBMAPS = 500
 
 
 def _locs(xml: str) -> list[str]:
@@ -54,17 +58,28 @@ def discover(
 
     urls: list[str] = []
     seen: set[str] = set()
-    for submap in submaps:
+    visited_maps: set[str] = set()
+    queue = list(submaps)
+    while queue:
+        submap = queue.pop(0)
+        if submap in visited_maps or len(visited_maps) >= MAX_SUBMAPS:
+            continue
         if not host_allowed(submap):
             continue
         if _SKIP_SUBMAP_RE.search(submap):
             continue
         if _UPDATE_SUBMAP_RE.search(submap) and not include_updates:
             continue
+        visited_maps.add(submap)
         try:
             xml = fetcher.get(submap)
         except FetchError as exc:
             print(f"تعذّر جلب خريطة فرعية {submap}: {exc}", file=sys.stderr)
+            continue
+        if _is_sitemap_index(xml):
+            # فهرس داخل فهرس: روابطه خرائط لا وثائق. بدون هذا الفرع كانت
+            # تُضاف روابط ‎.xml‎ إلى قائمة الوثائق وتفشل كلها عند الاستيراد
+            queue.extend(_locs(xml))
             continue
         for loc in _locs(xml):
             if not host_allowed(loc):
@@ -93,9 +108,7 @@ def run(argv: list[str] | None = None) -> int:
         help="إدراج صفحات تعديلات المواد المفردة (nezam_update) في nezams",
     )
     parser.add_argument("--delay", type=float, default=1.5, help="التأخير بين الطلبات بالثواني")
-    parser.add_argument(
-        "--ignore-robots", action="store_true", help="تعطيل فحص robots.txt (يُحترَم افتراضيًا)"
-    )
+    parser.add_argument("--ignore-robots", action="store_true", help="تعطيل فحص robots.txt (يُحترَم افتراضيًا)")
     args = parser.parse_args(argv)
 
     sources = args.sources or ["qanoonsa", "nezams"]
@@ -119,8 +132,6 @@ def run(argv: list[str] | None = None) -> int:
 
     text = "\n".join(all_urls) + ("\n" if all_urls else "")
     if args.out:
-        from pathlib import Path
-
         try:
             Path(args.out).write_text(text, encoding="utf-8")
         except OSError as exc:

@@ -6,9 +6,7 @@ from scripts.report import RunResult, build_summary
 
 def _report(ok=0, failed=0, unchanged=0):
     results = [RunResult(url=f"https://q/{i}/", status="ok", title="س") for i in range(ok)]
-    results += [
-        RunResult(url=f"https://q/f{i}/", status="failed", reason="خطأ") for i in range(failed)
-    ]
+    results += [RunResult(url=f"https://q/f{i}/", status="failed", reason="خطأ") for i in range(failed)]
     results += [RunResult(url=f"https://q/u{i}/", status="unchanged") for i in range(unchanged)]
     return build_summary(results)
 

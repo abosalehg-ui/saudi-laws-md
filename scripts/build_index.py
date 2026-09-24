@@ -23,12 +23,20 @@ import re
 import sys
 from pathlib import Path
 
-from .formatter import atomic_write
+from .classify import VALID_TYPES
+from .formatter import UNCATEGORIZED, atomic_write
 from .frontmatter import read_field, read_list_field
 
 _FIELDS = (
-    "title", "doc_type", "category", "status", "status_note",
-    "source", "source_url", "issued_date_hijri", "publish_date_gregorian",
+    "title",
+    "doc_type",
+    "category",
+    "status",
+    "status_note",
+    "source",
+    "source_url",
+    "issued_date_hijri",
+    "publish_date_gregorian",
     "content_status",
 )
 
@@ -75,8 +83,7 @@ def directory_readme(directory: Path, entries: list[dict]) -> str:
     lines = [
         f"# {directory.name}",
         "",
-        f"{len(rows)} وثيقة في هذا المجلد. فهرس مُولَّد آليًا "
-        "(`python -m scripts.build_index`) — لا يُحرَّر يدويًا.",
+        f"{len(rows)} وثيقة في هذا المجلد. فهرس مُولَّد آليًا (`python -m scripts.build_index`) — لا يُحرَّر يدويًا.",
         "",
     ]
     if incomplete:
@@ -103,12 +110,90 @@ def directory_readme(directory: Path, entries: list[dict]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def directory_readmes(entries: list[dict]) -> dict[Path, str]:
-    """يجمع الفهارس المطلوبة لكل مجلد يحوي وثائق."""
+def subfolder_readme(directory: Path, counts: dict[str, int]) -> str:
+    """فهرس مجلد وسيط (لا وثائق فيه مباشرةً، بل مجلدات فرعية): اسم كل فرع وعدده.
+
+    بدونه يفتح القارئ ``laws/قرار/`` فيجد أسماء سنوات بلا عدد ولا دليل.
+    """
+    total = sum(counts.values())
+    lines = [
+        f"# {directory.name}",
+        "",
+        f"{total} وثيقة موزّعة على {len(counts)} مجلدًا فرعيًا. فهرس مُولَّد آليًا "
+        "(`python -m scripts.build_index`) — لا يُحرَّر يدويًا.",
+        "",
+        "| المجلد | عدد الوثائق |",
+        "| --- | --- |",
+    ]
+    for name in sorted(counts):
+        lines.append(f"| [{_cell(name)}](<{name}/README.md>) | {counts[name]} |")
+    return "\n".join(lines) + "\n"
+
+
+def directory_readmes(entries: list[dict], out_dir: Path | None = None) -> dict[Path, str]:
+    """يجمع الفهارس المطلوبة لكل مجلد يحوي وثائق، ولكل مجلد وسيط فوقه."""
     by_dir: dict[Path, list[dict]] = {}
     for entry in entries:
         by_dir.setdefault(Path(entry["path"]).parent, []).append(entry)
-    return {d / "README.md": directory_readme(d, rows) for d, rows in by_dir.items()}
+    readmes = {d / "README.md": directory_readme(d, rows) for d, rows in by_dir.items()}
+    if out_dir is None:
+        return readmes
+    # المجلدات الوسيطة: أسلاف مجلدات الوثائق دون مجلد المخرجات نفسه، وليس
+    # فيها وثائق مباشرة (فهرسها جدول مجلدات فرعية لا جدول وثائق)
+    subfolders: dict[Path, dict[str, int]] = {}
+    for directory, rows in by_dir.items():
+        child = directory
+        for parent in directory.parents:
+            if parent == out_dir or out_dir not in parent.parents:
+                break
+            counts = subfolders.setdefault(parent, {})
+            counts[child.name] = counts.get(child.name, 0) + len(rows)
+            child = parent
+    for directory, counts in subfolders.items():
+        if directory not in by_dir:
+            readmes[directory / "README.md"] = subfolder_readme(directory, counts)
+    return readmes
+
+
+_BROWSE_START = "<!-- browse -->"
+_BROWSE_END = "<!-- /browse -->"
+_BROWSE_RE = re.compile(re.escape(_BROWSE_START) + r".*?" + re.escape(_BROWSE_END), re.S)
+
+
+def browse_section(entries: list[dict], out_dir: Path) -> str:
+    """جدولا تصفّح لمجلدات المستوى الأول: حسب المجال، وحسب نوع الوثيقة.
+
+    المُدوَّنة تجمع محورين في مستوى واحد — مجلدات مجال (``أنظمة الصحة``)
+    ومجلدات نوع (``لائحة``، ``قرار``) لوثائق لم يصنّفها مصدرها — فيُفصلان
+    هنا صراحةً حتى يعرف القارئ أين يبحث.
+    """
+    counts: dict[str, int] = {}
+    for entry in entries:
+        parts = Path(entry["path"]).relative_to(out_dir).parts
+        if len(parts) > 1:
+            counts[parts[0]] = counts.get(parts[0], 0) + 1
+    type_dirs = VALID_TYPES | {UNCATEGORIZED}
+    groups = (
+        ("حسب المجال", sorted(n for n in counts if n not in type_dirs)),
+        ("حسب نوع الوثيقة (وثائق لم يحدّد مصدرها مجالًا)", sorted(n for n in counts if n in type_dirs)),
+    )
+    lines = [
+        _BROWSE_START,
+        "",
+        f"{sum(counts.values()):,} وثيقة. جدولان مُولَّدان آليًا (`python -m scripts.build_index`).",
+    ]
+    for heading, names in groups:
+        if not names:
+            continue
+        lines += ["", f"### {heading}", "", "| المجلد | عدد الوثائق |", "| --- | --- |"]
+        lines += [f"| [{_cell(n)}](<{n}/README.md>) | {counts[n]:,} |" for n in names]
+    lines += ["", _BROWSE_END]
+    return "\n".join(lines)
+
+
+def out_readme_with_browse(text: str, entries: list[dict], out_dir: Path) -> str:
+    """يحدّث قسم التصفّح بين العلامتين في README مجلد المخرجات (إن وُجدتا)."""
+    return _BROWSE_RE.sub(lambda _: browse_section(entries, out_dir), text)
 
 
 def root_readme_with_count(text: str, count: int) -> str:
@@ -116,10 +201,16 @@ def root_readme_with_count(text: str, count: int) -> str:
     return _COUNT_RE.sub(f"{_COUNT_START}{count:,}{_COUNT_END}", text)
 
 
-def _generated_files(entries: list[dict], index_path: Path) -> dict[Path, str]:
+def _generated_files(entries: list[dict], index_path: Path, out_dir: Path) -> dict[Path, str]:
     """كل الملفات المُولَّدة ومحتواها المتوقّع — مصدر واحد للكتابة والتحقق."""
     files: dict[Path, str] = {index_path: _serialize(entries)}
-    files.update(directory_readmes(entries))
+    files.update(directory_readmes(entries, out_dir))
+    out_readme = out_dir / "README.md"
+    if out_readme.exists():
+        current = out_readme.read_text(encoding="utf-8")
+        updated = out_readme_with_browse(current, entries, out_dir)
+        if updated != current:
+            files[out_readme] = updated
     if _ROOT_README.exists():
         current = _ROOT_README.read_text(encoding="utf-8")
         updated = root_readme_with_count(current, len(entries))
@@ -130,10 +221,7 @@ def _generated_files(entries: list[dict], index_path: Path) -> dict[Path, str]:
 
 def _orphan_readmes(out_dir: Path, generated: dict[Path, str]) -> list[Path]:
     """فهارس مجلدات لم تعد لها وثائق (نُقلت كلها) — تُحذف بدل أن تتقادم."""
-    return [
-        path for path in sorted(out_dir.rglob("README.md"))
-        if path not in generated and path.parent != out_dir
-    ]
+    return [path for path in sorted(out_dir.rglob("README.md")) if path not in generated and path.parent != out_dir]
 
 
 def run(argv: list[str] | None = None) -> int:
@@ -144,18 +232,20 @@ def run(argv: list[str] | None = None) -> int:
     parser.add_argument("out", nargs="?", default="laws", help="مجلد المخرجات (افتراضي: laws)")
     parser.add_argument("--out-file", default="index.json", help="ملف الفهرس (افتراضي: index.json)")
     parser.add_argument(
-        "--check", action="store_true",
+        "--check",
+        action="store_true",
         help="التحقق أن الفهرس محدَّث دون كتابته (رمز خروج ≠0 إن تغيّر) — لـ CI",
     )
     args = parser.parse_args(argv)
 
     entries = build_index(Path(args.out))
     index_path = Path(args.out_file)
-    generated = _generated_files(entries, index_path)
+    generated = _generated_files(entries, index_path, Path(args.out))
 
     if args.check:
         stale = [
-            path for path, payload in generated.items()
+            path
+            for path, payload in generated.items()
             if (path.read_text(encoding="utf-8") if path.exists() else "") != payload
         ]
         # فهرس مجلد بقي بعد نقل آخر وثائقه = ملف مُولَّد يتيم يجب حذفه

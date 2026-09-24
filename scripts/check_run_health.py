@@ -28,10 +28,7 @@ _COUNT_RE = {
 
 def parse_counts(report: str) -> dict[str, int]:
     """يقرأ أعداد النجاح/الفشل/بلا تغيير من تقرير build_summary."""
-    return {
-        key: int(m.group(1)) if (m := pattern.search(report)) else 0
-        for key, pattern in _COUNT_RE.items()
-    }
+    return {key: int(m.group(1)) if (m := pattern.search(report)) else 0 for key, pattern in _COUNT_RE.items()}
 
 
 def failure_rate(counts: dict[str, int]) -> float:
@@ -47,7 +44,9 @@ def run(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("report", help="مسار تقرير التشغيلة (logs/summary.md)")
     parser.add_argument(
-        "--max-failure-rate", type=float, default=0.2,
+        "--max-failure-rate",
+        type=float,
+        default=0.2,
         help="أقصى نسبة فشل مقبولة (افتراضي 0.2)",
     )
     args = parser.parse_args(argv)
@@ -72,8 +71,7 @@ def run(argv: list[str] | None = None) -> int:
         return 1
     if rate > args.max_failure_rate:
         print(
-            f"نسبة الفشل {rate:.1%} تتجاوز العتبة {args.max_failure_rate:.0%} — "
-            "يُحتمل تغيّر بنية المصدر أو انقطاعه.",
+            f"نسبة الفشل {rate:.1%} تتجاوز العتبة {args.max_failure_rate:.0%} — يُحتمل تغيّر بنية المصدر أو انقطاعه.",
             file=sys.stderr,
         )
         return 1

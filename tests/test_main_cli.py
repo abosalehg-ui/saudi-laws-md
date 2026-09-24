@@ -46,9 +46,7 @@ def test_missing_url_file_exits_with_arabic_message(capsys):
 
 def test_url_file_comments_and_blanks_are_ignored(tmp_path):
     path = tmp_path / "urls.txt"
-    path.write_text(
-        "# تعليق\n\nhttps://qanoonsa.com/p/1/\n  \nhttps://nezams.com/x/\n", encoding="utf-8"
-    )
+    path.write_text("# تعليق\n\nhttps://qanoonsa.com/p/1/\n  \nhttps://nezams.com/x/\n", encoding="utf-8")
     parser = _build_parser()
     args = parser.parse_args(["--from-file", str(path)])
     assert _collect_urls(args, fetcher=None, parser=parser) == [

@@ -6,7 +6,7 @@ EXISTING_FRONT_MATTER = (
     'source_url: "https://qanoonsa.com/p/1/"\n'
     'doc_type: "نظام"\ncategory: "نظام"\n'
     'etag: "abc123"\nlast_modified: "Wed, 01 Jan 2026 00:00:00 GMT"\n'
-    'retrieved_at: 2020-01-01\n---\n\n# نظام العمل\n\n## المادة الأولى\n\nنص قديم.\n'
+    "retrieved_at: 2020-01-01\n---\n\n# نظام العمل\n\n## المادة الأولى\n\nنص قديم.\n"
 )
 
 
@@ -37,11 +37,14 @@ def test_check_updates_skips_rewrite_when_not_modified(tmp_path, monkeypatch):
     monkeypatch.setattr(main_mod, "Fetcher", FakeFetcher)
     monkeypatch.chdir(tmp_path)
 
-    code = run([
-        "https://qanoonsa.com/p/1/",
-        "--out", str(out),
-        "--check-updates",
-    ])
+    code = run(
+        [
+            "https://qanoonsa.com/p/1/",
+            "--out",
+            str(out),
+            "--check-updates",
+        ]
+    )
 
     assert code == 0
     assert seen == {"etag": "abc123", "last_modified": "Wed, 01 Jan 2026 00:00:00 GMT"}
@@ -67,19 +70,25 @@ def test_check_updates_rewrites_and_persists_new_etag_when_modified(tmp_path, mo
 
         def get_conditional(self, url, etag=None, last_modified=None):
             return FetchResult(
-                text=new_html, etag="new-etag",
-                last_modified="Thu, 02 Jan 2026 00:00:00 GMT", not_modified=False,
+                text=new_html,
+                etag="new-etag",
+                last_modified="Thu, 02 Jan 2026 00:00:00 GMT",
+                not_modified=False,
             )
 
     monkeypatch.setattr(main_mod, "Fetcher", FakeFetcher)
     monkeypatch.chdir(tmp_path)
 
-    code = run([
-        "https://qanoonsa.com/p/1/",
-        "--out", str(out),
-        "--category", "نظام",
-        "--check-updates",
-    ])
+    code = run(
+        [
+            "https://qanoonsa.com/p/1/",
+            "--out",
+            str(out),
+            "--category",
+            "نظام",
+            "--check-updates",
+        ]
+    )
 
     assert code == 0
     content = existing_file.read_text(encoding="utf-8")
@@ -117,11 +126,14 @@ def test_check_updates_falls_back_to_full_fetch_for_unseen_url(tmp_path, monkeyp
     monkeypatch.setattr(main_mod, "Fetcher", FakeFetcher)
     monkeypatch.chdir(tmp_path)
 
-    code = run([
-        "https://qanoonsa.com/p/2/",
-        "--out", str(out),
-        "--check-updates",
-    ])
+    code = run(
+        [
+            "https://qanoonsa.com/p/2/",
+            "--out",
+            str(out),
+            "--check-updates",
+        ]
+    )
 
     assert code == 0
     assert calls == {"get": 1, "get_conditional": 0}

@@ -36,22 +36,37 @@ _UNITS = {
 }
 
 _TENS = {
-    "العشرون": 20, "العشرين": 20,
-    "الثلاثون": 30, "الثلاثين": 30,
-    "الاربعون": 40, "الاربعين": 40,
-    "الخمسون": 50, "الخمسين": 50,
-    "الستون": 60, "الستين": 60,
-    "السبعون": 70, "السبعين": 70,
-    "الثمانون": 80, "الثمانين": 80,
-    "التسعون": 90, "التسعين": 90,
+    "العشرون": 20,
+    "العشرين": 20,
+    "الثلاثون": 30,
+    "الثلاثين": 30,
+    "الاربعون": 40,
+    "الاربعين": 40,
+    "الخمسون": 50,
+    "الخمسين": 50,
+    "الستون": 60,
+    "الستين": 60,
+    "السبعون": 70,
+    "السبعين": 70,
+    "الثمانون": 80,
+    "الثمانين": 80,
+    "التسعون": 90,
+    "التسعين": 90,
 }
 
 _HUNDREDS = {
-    "المائة": 100, "المئة": 100,
-    "المائتين": 200, "المائتان": 200, "المئتين": 200, "المئتان": 200,
-    "الثلاثمائة": 300, "الثلاثمئة": 300,
-    "الاربعمائة": 400, "الاربعمئة": 400,
-    "الخمسمائة": 500, "الخمسمئة": 500,
+    "المائة": 100,
+    "المئة": 100,
+    "المائتين": 200,
+    "المائتان": 200,
+    "المئتين": 200,
+    "المئتان": 200,
+    "الثلاثمائة": 300,
+    "الثلاثمئة": 300,
+    "الاربعمائة": 400,
+    "الاربعمئة": 400,
+    "الخمسمائة": 500,
+    "الخمسمئة": 500,
 }
 
 _BIS_RE = re.compile(r"مكرر(?:ا|ة)?")
@@ -87,12 +102,7 @@ def _is_ordinal_token(token: str) -> bool:
     if re.fullmatch(r"\d+", token):
         return True
     stripped = _strip_waw(token)
-    return (
-        stripped in _UNITS
-        or stripped in _TENS
-        or stripped in _HUNDREDS
-        or token in ("عشرة", "عشر", "بعد")
-    )
+    return stripped in _UNITS or stripped in _TENS or stripped in _HUNDREDS or token in ("عشرة", "عشر", "بعد")
 
 
 def _leading_ordinal_prefix(tokens: list[str]) -> list[str]:
@@ -136,7 +146,7 @@ def parse_article_label(label: str) -> tuple[int | None, bool]:
 
     if "بعد" in tokens:
         i = tokens.index("بعد")
-        left, right = tokens[:i], tokens[i + 1:]
+        left, right = tokens[:i], tokens[i + 1 :]
         if len(right) != 1 or right[0] not in _HUNDREDS:
             return None, is_bis
         base = _HUNDREDS[right[0]]

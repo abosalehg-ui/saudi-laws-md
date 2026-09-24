@@ -89,8 +89,7 @@ def test_hollow_body_is_error(tmp_path):
     """متن أقصر من الحدّ بلا content_status = خطأ صلب (191 حالة تسرّبت سابقًا)."""
     p = _write(
         tmp_path / "ت" / "أمر.md",
-        '---\ntitle: "أمر ملكي"\nsource_url: "https://q/1/"\n---\n\n'
-        "# أمر ملكي\n\nصدر في: ٤ من شوال ١٤٤٣هـ\n",
+        '---\ntitle: "أمر ملكي"\nsource_url: "https://q/1/"\n---\n\n# أمر ملكي\n\nصدر في: ٤ من شوال ١٤٤٣هـ\n',
     )
     errors, _ = lint_file(p, tmp_path)
     assert any("جوفاء" in e for e in errors)

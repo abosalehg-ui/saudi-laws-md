@@ -10,9 +10,9 @@
    قابلة للفرز من الحقول النصية القائمة، دون المساس بالنصّ الأصلي.
 3. تعليم الوثيقة الجوفاء بـ ``content_status: ناقص``.
 
-عن النقطة الثالثة: 197 وثيقة في المُدوَّنة متنها أقصر من الحد الأدنى —
-تحقّقنا بجلب صفحاتها أن **المصدر نفسه لا يعرض لها نصًّا** (النصّ في مرفق
-PDF)، فليست عطل استخراج. لا تُحذف (بياناتها الوصفية ورابطها لهما قيمة)
+عن النقطة الثالثة: الوثائق القائمة التي متنها أقصر من الحد الأدنى تحقّقنا
+بجلب صفحاتها أن **المصدر نفسه لا يعرض لها نصًّا** (النصّ في مرفق PDF)،
+فليست عطل استخراج. لا تُحذف (بياناتها الوصفية ورابطها لهما قيمة)
 ولا تُترك بلا علامة (تبدو حينها كنصّ نظام مبتور)، بل تُعلَّم صراحةً
 فيمكن ترشيحها من ``index.json`` ويمرّرها ``lint_corpus`` بوعي.
 
@@ -34,7 +34,7 @@ from pathlib import Path
 
 from .dates import parse_gregorian, parse_hijri
 from .formatter import atomic_write
-from .frontmatter import read_field, set_field
+from .frontmatter import body_text, read_field, set_field, split
 from .schema import (
     BROKEN_TITLE_RE,
     CONTENT_INCOMPLETE,
@@ -46,13 +46,6 @@ from .schema import (
 from .status import VALID_STATUSES, normalize_status
 
 _TITLE_LINE_RE = re.compile(r"^\s*#\s.*$", re.MULTILINE)
-_FRONT_MATTER_RE = re.compile(r"\A---\n.*?\n---\n(.*)", re.S)
-
-
-def body_text(text: str) -> str:
-    """متن الوثيقة بعد الـ front matter وسطر العنوان — ما يُقاس طوله."""
-    m = _FRONT_MATTER_RE.match(text)
-    return _TITLE_LINE_RE.sub("", m.group(1) if m else text, count=1).strip()
 
 
 def _is_uninformative(line: str) -> bool:
@@ -72,20 +65,19 @@ def replace_uninformative_body(text: str) -> tuple[str, bool]:
     ترك «English صدر بموجب …» أو «تحميل» متنًا لوثيقة يجعلها تبدو نصًّا
     قانونيًا مبتورًا؛ الملاحظة الصريحة تقول للقارئ ما الحاصل فعلًا.
     """
-    m = _FRONT_MATTER_RE.match(text)
-    if not m:
+    block, body = split(text)
+    if block is None:
         return text, False
-    body = m.group(1)
     title_match = _TITLE_LINE_RE.search(body)
     if not title_match:
         return text, False
-    rest = body[title_match.end():]
+    rest = body[title_match.end() :]
     lines = [ln for ln in rest.split("\n") if ln.strip()]
     if not lines or not all(_is_uninformative(ln) for ln in lines):
         return text, False
     if rest.strip() == INCOMPLETE_BODY_NOTE:
         return text, False
-    head = text[: m.start(1)] + body[: title_match.end()]
+    head = text[: len(text) - len(body)] + body[: title_match.end()]
     return f"{head}\n\n{INCOMPLETE_BODY_NOTE}\n", True
 
 
@@ -104,16 +96,12 @@ def migrate_text(text: str) -> tuple[str, list[str]]:
         text = set_field(text, "status_note", note)
         changed.append("status")
 
-    hijri = parse_hijri(read_field(text, "issued_date")) or parse_hijri(
-        read_field(text, "approval_date_hijri")
-    )
+    hijri = parse_hijri(read_field(text, "issued_date")) or parse_hijri(read_field(text, "approval_date_hijri"))
     if hijri and read_field(text, "issued_date_hijri") != hijri:
         text = set_field(text, "issued_date_hijri", hijri)
         changed.append("issued_date_hijri")
 
-    gregorian = parse_gregorian(read_field(text, "publish_date")) or parse_gregorian(
-        read_field(text, "gazette_ref")
-    )
+    gregorian = parse_gregorian(read_field(text, "publish_date")) or parse_gregorian(read_field(text, "gazette_ref"))
     if gregorian and read_field(text, "publish_date_gregorian") != gregorian:
         text = set_field(text, "publish_date_gregorian", gregorian)
         changed.append("publish_date_gregorian")
