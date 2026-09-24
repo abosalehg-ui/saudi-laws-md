@@ -35,7 +35,10 @@ def test_reclassifies_decision_title_after_issuer_prefix(tmp_path):
     out = tmp_path / "laws"
     old = out / "غير-مصنف" / "قرار.md"
     _write(
-        old, "وزارة الطاقة: قرار رقم (١) نزع ملكية", "أخرى", None,
+        old,
+        "وزارة الطاقة: قرار رقم (١) نزع ملكية",
+        "أخرى",
+        None,
         "## أولا\n\nنص البند.",
     )
 

@@ -17,7 +17,7 @@ import re
 from bs4 import BeautifulSoup
 
 from ..arabic_numbers import parse_article_label
-from ..htmlmd import clean_text, prose_to_markdown
+from ..htmlmd import clean_text, prose_to_markdown, table_to_markdown
 from ..schema import CLAUSE_NAMES, Article, LawDocument
 from .base import BaseAdapter, ParseError
 
@@ -43,7 +43,7 @@ class _ArticleCollector:
         self.clauses: list[Article] = []
         self.intro: list[str] = []
         # السطور التي هُضمت في حقول وصفية (تاريخ الإصدار، النشر)؛ تُستبعَد
-        # من المتن النثري وإلا خرجت وثيقة «متنها سطر تاريخ» (191 حالة)
+        # من المتن النثري وإلا خرجت وثيقة «متنها سطر تاريخ» فقط
         self.extracted: list[str] = []
         self._current: Article | None = None
         self._bab: str | None = None
@@ -57,8 +57,11 @@ class _ArticleCollector:
             number_int, is_bis = parse_article_label(label)
             section = " — ".join(s for s in (self._bab, self._fasl) if s) or None
             self._current = Article(
-                number=label, text="", section=section,
-                number_int=number_int, is_bis=is_bis,
+                number=label,
+                text="",
+                section=section,
+                number_int=number_int,
+                is_bis=is_bis,
             )
             self.doc.articles.append(self._current)
         elif clause:
@@ -88,6 +91,16 @@ class _ArticleCollector:
         else:
             self.intro.append(text)
 
+    def feed_table(self, markdown: str) -> None:
+        """جدول داخل مادة/بند يُلحق بنصّها كجدول Markdown كامل.
+
+        جدول الغرامات أو النقاط كثيرًا ما يكون جوهر المادة؛ إسقاطه يترك
+        مادة تنتهي بـ «وفق الجدول الآتي:» بلا شيء بعدها. جدول خارج أي مادة
+        (في الديباجة) يُهمل كبقية الديباجة في وضع المواد.
+        """
+        if self._current is not None and markdown:
+            self._current.text += ("\n\n" if self._current.text else "") + markdown
+
 
 class QanoonsaAdapter(BaseAdapter):
     source = "qanoonsa"
@@ -109,11 +122,14 @@ class QanoonsaAdapter(BaseAdapter):
 
         doc = LawDocument(title=title, source=self.source, source_url=url)
         collector = _ArticleCollector(doc)
-        for el in content.find_all(["h2", "h3", "h4", "p", "li", "blockquote"]):
-            # عنصر متداخل داخل li/blockquote يُلتقط نصه كاملًا ضمن حاويه؛
-            # معالجته ثانيةً هنا تُكرّر النص في المتن (نمط مطابق لتجاهل
-            # عناصر الجدول في htmlmd.prose_to_markdown)
-            if el.find_parent(["li", "blockquote"]) is not None:
+        for el in content.find_all(["h2", "h3", "h4", "p", "li", "blockquote", "table"]):
+            # عنصر متداخل داخل li/blockquote/table يُلتقط نصه كاملًا ضمن حاويه؛
+            # معالجته ثانيةً هنا تُكرّر النص في المتن أو تسطّح خلايا الجدول
+            # إلى فقرات (نمط مطابق لـ htmlmd.prose_to_markdown)
+            if el.find_parent(["li", "blockquote", "table"]) is not None:
+                continue
+            if el.name == "table":
+                collector.feed_table(table_to_markdown(el))
                 continue
             text = clean_text(el.get_text(" ", strip=True))
             if not text:

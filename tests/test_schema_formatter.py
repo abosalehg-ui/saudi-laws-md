@@ -70,15 +70,22 @@ def test_full_template():
 
 def test_none_fields_omitted():
     md = format_document(make_doc())
-    for key in ("issued_by", "approval_date_hijri", "publish_date", "gazette_ref",
-                "status", "category", "attachments", "amendments", "retrieved_at"):
+    for key in (
+        "issued_by",
+        "approval_date_hijri",
+        "publish_date",
+        "gazette_ref",
+        "status",
+        "category",
+        "attachments",
+        "amendments",
+        "retrieved_at",
+    ):
         assert f"\n{key}:" not in md
 
 
 def test_lists_in_front_matter():
-    md = format_document(
-        make_doc(attachments=["اللائحة التنفيذية", "لائحة ثانية"], amendments=["تعديل ١"])
-    )
+    md = format_document(make_doc(attachments=["اللائحة التنفيذية", "لائحة ثانية"], amendments=["تعديل ١"]))
     assert 'attachments: ["اللائحة التنفيذية", "لائحة ثانية"]' in md
     assert 'amendments: ["تعديل ١"]' in md
 
@@ -140,9 +147,7 @@ def test_sanitize_filename_respects_byte_limit_for_arabic():
 def test_validate_document_flags_noise_empty_and_no_content():
     doc = make_doc()
     doc.articles.append(Article(number="الثالثة", text="", number_int=3))  # فارغة
-    doc.articles.append(
-        Article(number="الرابعة", text="نص فيه مشاركة المادة", number_int=4)
-    )
+    doc.articles.append(Article(number="الرابعة", text="نص فيه مشاركة المادة", number_int=4))
     warnings = validate_document(doc)
     assert any("بقايا ضجيج واجهة" in w for w in warnings)
     assert any("مواد بلا متن" in w for w in warnings)

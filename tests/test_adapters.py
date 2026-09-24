@@ -72,8 +72,7 @@ class TestQanoonsa:
     def test_prose_page_becomes_body_not_failure(self):
         # صفحة بلا مواد لكن بمحتوى نصي تُحوَّل إلى body بدل رفعها كفشل
         doc = get_adapter("qanoonsa").parse(
-            "<html><h1>عنوان</h1>"
-            '<div class="entry-content"><p>فقرة أولى.</p><p>فقرة ثانية.</p></div></html>',
+            '<html><h1>عنوان</h1><div class="entry-content"><p>فقرة أولى.</p><p>فقرة ثانية.</p></div></html>',
             "",
         )
         assert doc.articles == []
@@ -82,9 +81,7 @@ class TestQanoonsa:
 
     def test_truly_empty_page_raises(self):
         with pytest.raises(ParseError):
-            get_adapter("qanoonsa").parse(
-                '<html><h1>عنوان</h1><div class="entry-content"></div></html>', ""
-            )
+            get_adapter("qanoonsa").parse('<html><h1>عنوان</h1><div class="entry-content"></div></html>', "")
 
     def test_nested_paragraph_not_duplicated_in_article(self):
         # p داخل li/blockquote يجب ألا يتكرر في متن المادة (M-4)
@@ -158,8 +155,7 @@ class TestNezams:
         assert nezams_doc.title == "نظام العمل"
         assert nezams_doc.approval_date_hijri == "1426/08/23 هـ"
         assert nezams_doc.issued_by == (
-            "المرسوم الملكي رقم م/51 بتاريخ 23 / 8 / 1426 هـ"
-            "؛ قرار مجلس الوزراء رقم 219 بتاريخ 22 / 8 / 1426 هـ"
+            "المرسوم الملكي رقم م/51 بتاريخ 23 / 8 / 1426 هـ؛ قرار مجلس الوزراء رقم 219 بتاريخ 22 / 8 / 1426 هـ"
         )
         assert nezams_doc.publish_date == "1426/09/25 هـ"
         assert nezams_doc.status == "ساري"
@@ -173,13 +169,17 @@ class TestNezams:
     def test_articles_and_bis(self, nezams_doc):
         assert [a.number_int for a in nezams_doc.articles] == [1, 2, 3, 4, 5, 79, 79]
         assert [a.is_bis for a in nezams_doc.articles] == [
-            False, False, False, False, False, False, True,
+            False,
+            False,
+            False,
+            False,
+            False,
+            False,
+            True,
         ]
         assert nezams_doc.articles[-1].number == "التاسعة والسبعين مكرر"
         # الفجوة 5→79 متعمدة في الـ fixture المقتطع، ومكرر 79 يلي أصله بلا تحذير
-        assert sequence_warnings(nezams_doc) == [
-            "خلل في التسلسل: بعد المادة 5 جاءت المادة 79"
-        ]
+        assert sequence_warnings(nezams_doc) == ["خلل في التسلسل: بعد المادة 5 جاءت المادة 79"]
 
     def test_amendment_history(self, nezams_doc):
         art3 = nezams_doc.articles[2]
@@ -203,7 +203,7 @@ class TestNezams:
         # نظام العمل)؛ يجب ألا يبتلع regex التعديل النص المقتبس فيترك المادة
         # بلا متن.
         html = (
-            '<html><body><h1>نظام تجريبي</h1>'
+            "<html><body><h1>نظام تجريبي</h1>"
             '<ul class="all-subject"><li class="subject">'
             "<h4>المادة الأولى مكرر</h4>"
             '<div class="content"><p>'
@@ -232,19 +232,21 @@ class TestNezams:
 class TestCli:
     def test_offline_mode_end_to_end(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
-        code = run([
-            "--html", str(FIXTURES / "nezams_sample.html"),
-            "--source", "nezams",
-            "--url", "https://nezams.com/نظام-العمل/",
-            "--out", str(tmp_path / "laws"),
-        ])
+        code = run(
+            [
+                "--html",
+                str(FIXTURES / "nezams_sample.html"),
+                "--source",
+                "nezams",
+                "--url",
+                "https://nezams.com/نظام-العمل/",
+                "--out",
+                str(tmp_path / "laws"),
+            ]
+        )
         assert code == 0
         # التصنيف الخام يُبسَّط تلقائيًا (تُحذف بادئة "الأنظمة السعودية –")
-        out_file = (
-            tmp_path / "laws"
-            / "أنظمة العمل والرعاية الاجتماعية"
-            / "نظام العمل.md"
-        )
+        out_file = tmp_path / "laws" / "أنظمة العمل والرعاية الاجتماعية" / "نظام العمل.md"
         assert out_file.exists()
         content = out_file.read_text(encoding="utf-8")
         assert content.startswith("---\n")
@@ -288,9 +290,7 @@ class TestCli:
             encoding="utf-8",
         )
         (out / "بلا-رابط.md").write_text('---\ntitle: "x"\n---\n', encoding="utf-8")
-        assert load_done_from_output(tmp_path / "laws") == {
-            "https://nezams.com/نظام-العمل/"
-        }
+        assert load_done_from_output(tmp_path / "laws") == {"https://nezams.com/نظام-العمل/"}
         assert load_done_from_output(tmp_path / "غير-موجود") == set()
 
     def test_relocation_on_category_change_removes_stale_file(self, tmp_path, monkeypatch):
@@ -299,10 +299,14 @@ class TestCli:
         monkeypatch.chdir(tmp_path)
         out = str(tmp_path / "laws")
         common = [
-            "--html", str(FIXTURES / "nezams_sample.html"),
-            "--source", "nezams",
-            "--url", "https://nezams.com/نظام-العمل/",
-            "--out", out,
+            "--html",
+            str(FIXTURES / "nezams_sample.html"),
+            "--source",
+            "nezams",
+            "--url",
+            "https://nezams.com/نظام-العمل/",
+            "--out",
+            out,
         ]
         assert run(common) == 0
         old_path = tmp_path / "laws" / "أنظمة العمل والرعاية الاجتماعية" / "نظام العمل.md"
@@ -334,11 +338,15 @@ class TestCli:
         monkeypatch.setattr(main_mod, "discover", lambda source, fetcher, **k: [url])
         monkeypatch.chdir(tmp_path)
 
-        code = run([
-            "--discover", "nezams",
-            "--out", str(tmp_path / "laws"),
-            "--report",
-        ])
+        code = run(
+            [
+                "--discover",
+                "nezams",
+                "--out",
+                str(tmp_path / "laws"),
+                "--report",
+            ]
+        )
         assert code == 0
         summary = (tmp_path / "logs" / "summary.md").read_text(encoding="utf-8")
         assert "نجح: **1**" in summary

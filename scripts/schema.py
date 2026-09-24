@@ -6,22 +6,23 @@ import re
 from dataclasses import dataclass, field
 
 from .arabic_numbers import ARTICLE_LABEL_RE
+from .frontmatter import read_field
 
 
 @dataclass
 class Article:
-    number: str                    # التسمية كما وردت: "الأولى"، "التاسعة والسبعون مكرر"...
+    number: str  # التسمية كما وردت: "الأولى"، "التاسعة والسبعون مكرر"...
     text: str
-    section: str | None = None     # عنوان الباب/الفصل الذي تنتمي له المادة (إن وُجد)
+    section: str | None = None  # عنوان الباب/الفصل الذي تنتمي له المادة (إن وُجد)
     number_int: int | None = None  # الرقم التسلسلي المشتق، للتحقق فقط ولا يظهر في الناتج
-    is_bis: bool = False           # مادة "مكرر"
+    is_bis: bool = False  # مادة "مكرر"
     amendment_history: list[str] = field(default_factory=list)
 
 
 @dataclass
 class LawDocument:
     title: str
-    source: str                    # "qanoonsa" أو "nezams"
+    source: str  # "qanoonsa" أو "nezams"
     source_url: str
     issued_by: str | None = None
     approval_date_hijri: str | None = None
@@ -33,16 +34,36 @@ class LawDocument:
     amendments: list[str] = field(default_factory=list)  # تعديلات على مستوى النظام (تظهر في تفاصيل nezams)
     articles: list[Article] = field(default_factory=list)
     retrieved_at: str | None = None
-    is_decision: bool = False      # قرار (أولا/ثانيا/...) بلا مواد، بدل نظام كامل
+    is_decision: bool = False  # قرار (أولا/ثانيا/...) بلا مواد، بدل نظام كامل
     issued_date: str | None = None  # تاريخ صدور القرار كما ورد ("صدر في: ...")
-    doc_type: str | None = None    # النوع المكتشف: نظام/لائحة/مرسوم/أمر/قرار/اتفاقية/معايير...
-    body: str | None = None        # متن الوثائق غير المقسّمة لمواد (أدلة/معايير/جداول)، Markdown جاهز
-    etag: str | None = None        # ETag آخر استجابة HTTP، لجلب شرطي لاحق (--check-updates)
+    doc_type: str | None = None  # النوع المكتشف: نظام/لائحة/مرسوم/أمر/قرار/اتفاقية/معايير...
+    body: str | None = None  # متن الوثائق غير المقسّمة لمواد (أدلة/معايير/جداول)، Markdown جاهز
+    etag: str | None = None  # ETag آخر استجابة HTTP، لجلب شرطي لاحق (--check-updates)
     last_modified: str | None = None  # Last-Modified آخر استجابة HTTP، لنفس الغرض
-    status_note: str | None = None    # نصّ الحالة الأصلي حين يحمل تفاصيل (جهة الإلغاء والنظام البديل)
-    issued_date_hijri: str | None = None      # تاريخ الإصدار الهجري ISO قابل للفرز (1443-10-04)
+    status_note: str | None = None  # نصّ الحالة الأصلي حين يحمل تفاصيل (جهة الإلغاء والنظام البديل)
+    issued_date_hijri: str | None = None  # تاريخ الإصدار الهجري ISO قابل للفرز (1443-10-04)
     publish_date_gregorian: str | None = None  # تاريخ النشر الميلادي ISO قابل للفرز
     content_status: str | None = None  # "ناقص" للوثيقة التي لا نصّ لها في المصدر نفسه
+    dropped_items: int = 0  # عناصر مادة أسقطها الـ adapter لقالب غير متوقَّع (للتحقق فقط)
+
+    @classmethod
+    def from_front_matter(cls, text: str) -> LawDocument:
+        """وثيقة وصفية (بلا مواد ولا متن) من front matter ملف مُلتزَم.
+
+        تكفي لإعادة حساب النوع والتصنيف والمسار (``category_dir``/``output_path``)
+        بنفس دوال الاستيراد — فلا تبني كل أداة صيانة نسختها من هذه الحقول.
+        """
+        return cls(
+            title=read_field(text, "title") or "",
+            source=read_field(text, "source") or "",
+            source_url=read_field(text, "source_url") or "",
+            doc_type=read_field(text, "doc_type"),
+            category=read_field(text, "category"),
+            issued_date=read_field(text, "issued_date"),
+            approval_date_hijri=read_field(text, "approval_date_hijri"),
+            gazette_ref=read_field(text, "gazette_ref"),
+            content_status=read_field(text, "content_status"),
+        )
 
 
 def sequence_warnings(doc: LawDocument) -> list[str]:
@@ -60,14 +81,10 @@ def sequence_warnings(doc: LawDocument) -> list[str]:
             continue
         if art.is_bis:
             if prev is not None and art.number_int != prev:
-                warnings.append(
-                    f"مادة مكررة برقم {art.number_int} لا تلي أصلها (السابقة: {prev})"
-                )
+                warnings.append(f"مادة مكررة برقم {art.number_int} لا تلي أصلها (السابقة: {prev})")
             continue
         if prev is not None and art.number_int != prev + 1:
-            warnings.append(
-                f"خلل في التسلسل: بعد المادة {prev} جاءت المادة {art.number_int}"
-            )
+            warnings.append(f"خلل في التسلسل: بعد المادة {prev} جاءت المادة {art.number_int}")
         prev = art.number_int
     return warnings
 
@@ -75,8 +92,16 @@ def sequence_warnings(doc: LawDocument) -> list[str]:
 # ترتيب بنود القرار (أولا/ثانيا/…)، مصدر وحيد يُبنى منه كل ما يطابق البنود
 # (كشف القرار في الـ adapters، تسلسل البنود هنا) تفاديًا لتكرار القائمة
 CLAUSE_NAMES = (
-    "أولا", "ثانيا", "ثالثا", "رابعا", "خامسا",
-    "سادسا", "سابعا", "ثامنا", "تاسعا", "عاشرا",
+    "أولا",
+    "ثانيا",
+    "ثالثا",
+    "رابعا",
+    "خامسا",
+    "سادسا",
+    "سابعا",
+    "ثامنا",
+    "تاسعا",
+    "عاشرا",
 )
 _CLAUSE_ORDER = CLAUSE_NAMES  # اسم داخلي سابق (للوضوح في دوال هذا الملف)
 _CLAUSE_RANK = {name: i for i, name in enumerate(_CLAUSE_ORDER)}
@@ -94,9 +119,7 @@ def clause_sequence_warnings(doc: LawDocument) -> list[str]:
             continue
         if rank != prev_rank + 1:
             expected = _CLAUSE_ORDER[prev_rank + 1] if prev_rank + 1 < len(_CLAUSE_ORDER) else "?"
-            warnings.append(
-                f"خلل تسلسل البنود: «{art.number}» بلا ما قبله (المتوقع «{expected}»)"
-            )
+            warnings.append(f"خلل تسلسل البنود: «{art.number}» بلا ما قبله (المتوقع «{expected}»)")
         prev_rank = rank
     return warnings
 
@@ -144,10 +167,43 @@ INCOMPLETE_BODY_NOTE = (
 UNINFORMATIVE_BODY_LINES = frozenset({"تحميل", "التحميل", "اضغط هنا", "English"})
 
 
+# سطر يعِد بجدول («… وفق الجدول الآتي:») — يجب أن يليه جدول Markdown.
+# «المرفق» مستثنى عمدًا: الجدول المرفق وثيقة مستقلة غالبًا لا جزء من المتن.
+_TABLE_PROMISE_RE = re.compile(
+    r"^(?!\|)[^\n]*(?:الجدول|الجداول)\s+(?:الآتي|الاتي|التالي|الآتية|التالية)[^\n]*:[ \t]*$",
+    re.MULTILINE,
+)
+
+
+#: ملاحظة صريحة تحلّ محلّ جدول تعذّر استخراجه، فيعرف القارئ أن المادة
+#: ناقصة بدل أن تبدو كاملة. الحارس يقبلها (تحذيرًا لا خطأً) إلى أن يُعاد
+#: سحب الوثيقة بالمحوّل الذي يستخرج الجداول.
+MISSING_TABLE_NOTE = "> **الجدول غير متاح في هذه النسخة.**"
+
+
+def missing_table_lines(text: str, acknowledged: bool = False) -> list[str]:
+    """أسطر تعِد بجدول («الجدول الآتي:») ولا يليها جدول Markdown.
+
+    هذا توقيع عطل الاستخراج الذي كان يُسقط جداول المواد بصمت: مادة تنتهي
+    بنقطتين ثم تنتقل مباشرة إلى الفقرة أو المادة التالية. سطر تليه
+    ``MISSING_TABLE_NOTE`` لا يُعدّ صامتًا؛ ``acknowledged=True`` يعيد هذه
+    الأسطر المعلَّمة بدل الصامتة.
+    """
+    found = []
+    for m in _TABLE_PROMISE_RE.finditer(text):
+        rest = text[m.end() :].lstrip()
+        if rest.startswith("|"):
+            continue
+        if rest.startswith(MISSING_TABLE_NOTE) == acknowledged:
+            found.append(m.group(0).strip())
+    return found
+
+
 def body_length(doc: LawDocument) -> int:
     """طول المحتوى الفعلي للوثيقة بالمحارف (مواد + متن نثري)."""
     total = sum(len(a.text.strip()) for a in doc.articles)
     return total + len((doc.body or "").strip())
+
 
 # عناوين تشبه أخطاء صيغ جداول بيانات (Excel/Google Sheets) متسرّبة من
 # الموقع المصدر نفسه، لا خللًا في الاستخراج — لوحظت حالة "#REF!" فعليًا
@@ -175,10 +231,7 @@ def validate_document(doc: LawDocument) -> list[str]:
     # بنية HTML للموقع المصدر، لا وثيقة نثرية بطبيعتها
     if doc.body and not doc.articles:
         if len(ARTICLE_LABEL_RE.findall(doc.body)) >= 2:
-            warnings.append(
-                "وثيقة نثرية تحوي عدة نصوص «المادة …»؛ يُحتمل فشل تقطيع المواد "
-                "(تغيّر بنية المصدر؟)"
-            )
+            warnings.append("وثيقة نثرية تحوي عدة نصوص «المادة …»؛ يُحتمل فشل تقطيع المواد (تغيّر بنية المصدر؟)")
 
     haystacks = [a.text for a in doc.articles]
     if doc.body:
@@ -194,6 +247,13 @@ def validate_document(doc: LawDocument) -> list[str]:
             f"متن أقصر من الحد الأدنى ({body_length(doc)} < {MIN_BODY_CHARS} محرفًا): "
             "يُحتمل أن الصفحة بلا نصّ (مرفق PDF) أو أن الاستخراج فشل"
         )
+
+    for text in haystacks:
+        for line in missing_table_lines(text):
+            warnings.append(f"سطر يعِد بجدول لا يليه جدول (يُحتمل إسقاط جدول): «{line[:80]}»")
+
+    if doc.dropped_items:
+        warnings.append(f"أُسقط {doc.dropped_items} عنصر مادة بقالب غير متوقَّع (بلا عنوان أو متن)")
 
     empty = [a.number for a in doc.articles if not a.text.strip()]
     if empty:

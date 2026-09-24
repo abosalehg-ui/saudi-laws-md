@@ -16,10 +16,10 @@ class RunResult:
     """سجل معالجة رابط واحد ضمن تشغيلة."""
 
     url: str
-    status: str                       # "ok" | "failed" | "unchanged"
+    status: str  # "ok" | "failed" | "unchanged"
     title: str | None = None
     doc_type: str | None = None
-    reason: str | None = None         # سبب الفشل عند status == "failed"
+    reason: str | None = None  # سبب الفشل عند status == "failed"
     warnings: list[str] = field(default_factory=list)
 
 

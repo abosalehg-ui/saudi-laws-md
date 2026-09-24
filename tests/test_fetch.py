@@ -16,6 +16,14 @@ class FakeResponse:
     def content(self) -> bytes:
         return self.text.encode("utf-8")
 
+    def iter_content(self, chunk_size=1):
+        data = self.content
+        for i in range(0, len(data), chunk_size):
+            yield data[i : i + chunk_size]
+
+    def close(self) -> None:
+        pass
+
     def raise_for_status(self) -> None:
         if self.status_code >= 400:
             raise requests.HTTPError(f"{self.status_code} error")
@@ -189,7 +197,8 @@ def test_robots_disallow_blocks_fetch(monkeypatch):
 def test_robots_absent_allows_all(monkeypatch):
     fetcher = _fetcher(respect_robots=True)
     monkeypatch.setattr(
-        fetcher.session, "get",
+        fetcher.session,
+        "get",
         lambda url, timeout, headers=None, **kw: FakeResponse(404 if url.endswith("robots.txt") else 200, "x"),
     )
     assert fetcher.get("https://nezams.com/anything/") == "x"
@@ -200,7 +209,8 @@ def test_robots_ignored_when_disabled(monkeypatch):
     fetcher = _fetcher()
     calls = []
     monkeypatch.setattr(
-        fetcher.session, "get",
+        fetcher.session,
+        "get",
         lambda url, timeout, headers=None, **kw: calls.append(url) or FakeResponse(200, "x"),
     )
     fetcher.get("https://nezams.com/private/x/")

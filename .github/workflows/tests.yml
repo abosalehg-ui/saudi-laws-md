@@ -37,6 +37,8 @@ jobs:
           cache-dependency-path: pyproject.toml
       - run: pip install -e ".[dev]"
       - run: ruff check scripts tests
+      # التنسيق مُلزَم لا اختياري: بدونه تتراكم فروق تنسيق تُغرق فروق المنطق
+      - run: ruff format --check scripts tests
 
   corpus:
     runs-on: ubuntu-latest

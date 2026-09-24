@@ -32,8 +32,7 @@ def test_self_link_is_dropped_from_also_available(tmp_path):
     p = _write(
         tmp_path,
         "a.md",
-        f'title: "س"\nsource_url: "{DECODED}"\n'
-        f'also_available_from: ["{ENCODED}", "https://qanoonsa.com/p/1/"]',
+        f'title: "س"\nsource_url: "{DECODED}"\nalso_available_from: ["{ENCODED}", "https://qanoonsa.com/p/1/"]',
     )
     assert canonicalize_file(p) == (False, True)
     text = p.read_text(encoding="utf-8")

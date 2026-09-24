@@ -25,13 +25,10 @@ from pathlib import Path
 
 from .classify import classify_doc_type, resolve_category
 from .formatter import atomic_write, output_path, prune_empty_dirs
-from .frontmatter import read_field, set_field, unquote
+from .frontmatter import set_field
 from .schema import CLAUSE_NAMES, LawDocument
 
-_TITLE_RE = re.compile(r'^title:\s*"((?:[^"\\]|\\.)*)"\s*$', re.MULTILINE)
-_CLAUSE_HEADING_RE = re.compile(
-    rf"^#{{2,3}}\s*({'|'.join(CLAUSE_NAMES)})ً?\s*$", re.MULTILINE
-)
+_CLAUSE_HEADING_RE = re.compile(rf"^#{{2,3}}\s*({'|'.join(CLAUSE_NAMES)})ً?\s*$", re.MULTILINE)
 
 
 def _detect_is_decision(body: str) -> bool:
@@ -41,33 +38,19 @@ def _detect_is_decision(body: str) -> bool:
 def plan_move(path: Path, out_dir: Path) -> tuple[Path, str | None, str | None] | None:
     """يحسب الوجهة الجديدة لملف واحد؛ يعيد None إن تعذّرت قراءة الحقول اللازمة."""
     text = path.read_text(encoding="utf-8")
-    m_title = _TITLE_RE.search(text)
-    if not m_title:
+    doc = LawDocument.from_front_matter(text)
+    if not doc.title:
         return None
-    title = unquote(m_title.group(1))
-    source_url = read_field(text, "source_url") or ""
-    old_doc_type = read_field(text, "doc_type")
-    old_category = read_field(text, "category")
+    old_doc_type, old_category = doc.doc_type, doc.category
 
-    is_decision = _detect_is_decision(text)
-    new_doc_type = classify_doc_type(title, source_url, is_decision)
+    new_doc_type = classify_doc_type(doc.title, doc.source_url, _detect_is_decision(text))
     new_category = resolve_category(old_category, new_doc_type)
 
     # الوجهة تُحسب بنفس دالة الاستيراد لا بنسخة ثانية من منطق المسار، وإلا
     # اختلفت عنها بصمت (مثل تقسيم مجلدات النوع حسب السنة) فأعاد كل استيراد
     # لاحق الملفات إلى مسارها القديم
-    new_path = output_path(
-        LawDocument(
-            title=title,
-            source=read_field(text, "source") or "",
-            source_url=source_url,
-            category=new_category,
-            issued_date=read_field(text, "issued_date"),
-            approval_date_hijri=read_field(text, "approval_date_hijri"),
-            gazette_ref=read_field(text, "gazette_ref"),
-        ),
-        out_dir,
-    )
+    doc.category = new_category
+    new_path = output_path(doc, out_dir)
 
     changed_doc_type = new_doc_type if new_doc_type != old_doc_type else None
     changed_category = new_category if new_category != old_category else None

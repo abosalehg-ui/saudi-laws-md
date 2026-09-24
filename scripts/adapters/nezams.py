@@ -18,9 +18,10 @@ from __future__ import annotations
 
 import re
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString, Tag
 
 from ..arabic_numbers import parse_article_label
+from ..htmlmd import table_to_markdown
 from ..schema import Article, LawDocument
 from .base import BaseAdapter, ParseError
 
@@ -46,6 +47,29 @@ _FIELD_MAP = {
     "التعديلات": "amendments",
 }
 _LIST_FIELDS = {"attachments", "amendments"}
+
+
+# علامة موضع مؤقتة للجدول داخل نصّ المادة: النصّ يُسطَّح سطرًا سطرًا ثم
+# يُضمّ بفقرات فارغة، وهذا يمزّق صفوف جدول Markdown؛ فيُستبدل الجدول بعلامة
+# تمرّ سليمة عبر التسطيح ثم تُعاد جدولًا كاملًا في النهاية
+_TABLE_TOKEN = "\x00TABLE{}\x00"
+
+
+def _extract_tables(content: Tag) -> list[str]:
+    """يستبدل كل جدول في ``content`` بعلامة موضع ويعيد جداول Markdown بالترتيب."""
+    tables: list[str] = []
+    for table in content.find_all("table"):
+        if table.find_parent("table") is not None:
+            continue  # جدول متداخل يُحوَّل ضمن جدوله الحاوي
+        tables.append(table_to_markdown(table))
+        table.replace_with(NavigableString("\n" + _TABLE_TOKEN.format(len(tables) - 1) + "\n"))
+    return tables
+
+
+def _restore_tables(text: str, tables: list[str]) -> str:
+    for i, markdown in enumerate(tables):
+        text = text.replace(_TABLE_TOKEN.format(i), markdown)
+    return text
 
 
 def _clean_line(value: str) -> str:
@@ -76,15 +100,16 @@ class NezamsAdapter(BaseAdapter):
             heading = li.find(["h4", "h3", "h2"])
             content = li.find("div", class_="content")
             if heading is None or content is None:
+                # عنصر مادة بقالب غير متوقَّع: يُعدّ ولا يُسقط بصمت، فيظهر
+                # تحذيرًا مسمّى بدل فجوة مجهولة في تسلسل المواد
+                doc.dropped_items += 1
                 continue
+            tables = _extract_tables(content)
             label_text = " ".join(heading.get_text(" ", strip=True).split())
             m = _ARTICLE_LABEL_RE.match(label_text)
             label = m.group(1).strip() if m else label_text
 
-            lines = [
-                " ".join(line.split())
-                for line in content.get_text("\n", strip=True).split("\n")
-            ]
+            lines = [" ".join(line.split()) for line in content.get_text("\n", strip=True).split("\n")]
             amendments: list[str] = []
             body: list[str] = []
             for line in lines:
@@ -93,7 +118,7 @@ class NezamsAdapter(BaseAdapter):
                 m = _AMEND_LINE_RE.match(line)
                 if m:
                     amendments.append(m.group(1).strip())
-                    remainder = line[m.end():].strip()
+                    remainder = line[m.end() :].strip()
                     if remainder:
                         body.append(remainder)
                 else:
@@ -103,7 +128,7 @@ class NezamsAdapter(BaseAdapter):
             doc.articles.append(
                 Article(
                     number=label,
-                    text="\n\n".join(body).strip(),
+                    text=_restore_tables("\n\n".join(body).strip(), tables),
                     number_int=number_int,
                     is_bis=is_bis,
                     amendment_history=amendments,
@@ -128,10 +153,7 @@ class NezamsAdapter(BaseAdapter):
             field = _FIELD_MAP.get(label)
             if field is None:
                 continue
-            lines = [
-                _clean_line(line)
-                for line in cells[1].get_text("\n", strip=True).split("\n")
-            ]
+            lines = [_clean_line(line) for line in cells[1].get_text("\n", strip=True).split("\n")]
             lines = [line for line in lines if line]
             if not lines:
                 continue

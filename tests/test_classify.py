@@ -22,10 +22,7 @@ def test_decrees_orders_decisions():
 
 def test_decision_after_issuer_prefix():
     # الصيغة الغالبة لعناوين قرارات qanoonsa: "الجهة: قرار رقم (...)"
-    assert (
-        classify_doc_type("وزارة الطاقة: قرار رقم (٣٩٢٢) نزع ملكية من أجل تعزيز موثوقية الشبكة")
-        == "قرار"
-    )
+    assert classify_doc_type("وزارة الطاقة: قرار رقم (٣٩٢٢) نزع ملكية من أجل تعزيز موثوقية الشبكة") == "قرار"
     # لا يُطابق عناوين لا تحوي "قرار" بعد نقطتين
     assert classify_doc_type("نظام العمل: أحكام عامة") == "نظام"
 
@@ -49,10 +46,7 @@ def test_decision_fallback_and_other():
 
 
 def test_simplify_category_strips_generic_prefix():
-    assert (
-        simplify_category("الأنظمة السعودية – أنظمة العمل والرعاية الاجتماعية")
-        == "أنظمة العمل والرعاية الاجتماعية"
-    )
+    assert simplify_category("الأنظمة السعودية – أنظمة العمل والرعاية الاجتماعية") == "أنظمة العمل والرعاية الاجتماعية"
     assert simplify_category("عمل") == "عمل"
     assert simplify_category(None) is None
     assert simplify_category("") is None
@@ -84,8 +78,14 @@ def test_resolve_category_falls_back_to_doc_type():
 
 def test_all_outputs_are_valid_types():
     samples = [
-        "نظام العمل", "اللائحة التنفيذية", "مرسوم ملكي رقم", "أمر ملكي رقم",
-        "قرار مجلس", "اتفاقية", "معايير", "شيء غريب",
+        "نظام العمل",
+        "اللائحة التنفيذية",
+        "مرسوم ملكي رقم",
+        "أمر ملكي رقم",
+        "قرار مجلس",
+        "اتفاقية",
+        "معايير",
+        "شيء غريب",
     ]
     for title in samples:
         assert classify_doc_type(title) in VALID_TYPES

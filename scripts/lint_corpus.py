@@ -24,25 +24,21 @@ from pathlib import Path
 
 from .arabic_numbers import parse_article_label
 from .formatter import MAX_FILES_PER_DIR, UNCATEGORIZED, category_dir
-from .frontmatter import read_field
+from .frontmatter import body_text, read_field, split
 from .schema import (
     BROKEN_TITLE_RE,
     CONTENT_INCOMPLETE,
     INCOMPLETE_BODY_NOTE,
     MIN_BODY_CHARS,
     NOISE_PATTERNS,
+    LawDocument,
+    missing_table_lines,
 )
-from .schema import LawDocument as _Doc
 from .status import VALID_STATUSES
 
 _ARTICLE_HEADING_RE = re.compile(r"^#{2,3}\s+المادة\s+(.+?)\s*$", re.MULTILINE)
 _PARA_SPLIT_RE = re.compile(r"\n\s*\n")
 _REQUIRED_FIELDS = ("title", "source_url")
-
-
-def _body_after_front_matter(text: str) -> str:
-    m = re.match(r"\A---\n.*?\n---\n(.*)", text, re.S)
-    return m.group(1) if m else text
 
 
 def _article_sequence_errors(body: str) -> list[str]:
@@ -84,37 +80,25 @@ def lint_file(path: Path, out_dir: Path) -> tuple[list[str], list[str]]:
     if BROKEN_TITLE_RE.match(title.strip()):
         errors.append(f"عنوان معطوب: «{title}»")
 
-    body = _body_after_front_matter(text)
+    body = split(text)[1]
     # وثيقة بلا أي متن بعد عنوانها (front matter + # عنوان فقط) عطلُ استخراجٍ
-    # صامت — validate_document يرصده لحظة السحب، لكن لا شيء كان يرصده في
-    # المُدوَّنة المُلتزَمة، فتراكمت 132 وثيقة جوفاء مرّت عبر CI بصمت
-    content = re.sub(r"^\s*#\s.*$", "", body, count=1, flags=re.MULTILINE).strip()
+    # صامت — validate_document يرصده لحظة السحب، وهذا الفحص يرصده في
+    # المُدوَّنة المُلتزَمة، فلا تمرّ وثيقة جوفاء عبر CI بصمت
+    content = body_text(text)
     content_status = read_field(text, "content_status")
     if not content:
         errors.append("وثيقة بلا متن: front matter وعنوان فقط")
-    elif (
-        len(content) < MIN_BODY_CHARS or content == INCOMPLETE_BODY_NOTE
-    ) and content_status != CONTENT_INCOMPLETE:
+    elif (len(content) < MIN_BODY_CHARS or content == INCOMPLETE_BODY_NOTE) and content_status != CONTENT_INCOMPLETE:
         # وثيقة جوفاء غير معلَّمة: إمّا عطل استخراج (يجب إصلاحه) وإمّا صفحة
         # مصدر بلا نصّ (يجب تعليمها content_status: ناقص صراحةً). الحالتان
         # تستوجبان تدخّلًا، فهي خطأ صلب لا تحذير — وإلا تسرّبت بصمت كما حدث
-        errors.append(
-            f"متن جوفاء ({len(content)} < {MIN_BODY_CHARS} محرفًا) بلا "
-            f"content_status: {CONTENT_INCOMPLETE}"
-        )
-    elif (
-        content_status == CONTENT_INCOMPLETE
-        and len(content) >= MIN_BODY_CHARS
-        and content != INCOMPLETE_BODY_NOTE
-    ):
+        errors.append(f"متن جوفاء ({len(content)} < {MIN_BODY_CHARS} محرفًا) بلا content_status: {CONTENT_INCOMPLETE}")
+    elif content_status == CONTENT_INCOMPLETE and len(content) >= MIN_BODY_CHARS and content != INCOMPLETE_BODY_NOTE:
         warnings.append("معلَّمة content_status: ناقص رغم أن لها متنًا كاملًا؛ أزِل العلامة")
 
     status = read_field(text, "status")
     if status and status not in VALID_STATUSES:
-        errors.append(
-            f"قيمة status خارج المجموعة المغلقة: «{status}» "
-            f"(المسموح: {'، '.join(sorted(VALID_STATUSES))})"
-        )
+        errors.append(f"قيمة status خارج المجموعة المغلقة: «{status}» (المسموح: {'، '.join(sorted(VALID_STATUSES))})")
 
     for pattern in NOISE_PATTERNS:
         if pattern in body:
@@ -122,22 +106,18 @@ def lint_file(path: Path, out_dir: Path) -> tuple[list[str], list[str]]:
             break
     if _duplicate_paragraph(body):
         errors.append("فقرات متتالية مكرّرة (أثر ازدواج استخراج)")
+    # جدول وعد به المتن ثم سقط في الاستخراج: مادة مبتورة بلا أي إشارة
+    # للقارئ — أسوأ من مادة غائبة، فهي خطأ صلب لا تحذير
+    for line in missing_table_lines(body):
+        errors.append(f"سطر يعِد بجدول لا يليه جدول: «{line[:80]}»")
+    for line in missing_table_lines(body, acknowledged=True):
+        warnings.append(f"جدول معلَّم بأنه غير متاح (أعِد سحب الوثيقة): «{line[:60]}»")
 
     category = read_field(text, "category")
     # الوجهة المتوقّعة تُحسب بنفس دالة الاستيراد (بما فيها تقسيم مجلدات
     # النوع حسب السنة)، لا بمقارنة اسم المجلد الأخير وحده — وإلا عُدّت كل
     # وثيقة في laws/قرار/<سنة>/ مخالِفة لتصنيفها
-    expected_dir = category_dir(
-        _Doc(
-            title="",
-            source="",
-            source_url="",
-            category=category,
-            issued_date=read_field(text, "issued_date"),
-            approval_date_hijri=read_field(text, "approval_date_hijri"),
-            gazette_ref=read_field(text, "gazette_ref"),
-        )
-    )
+    expected_dir = category_dir(LawDocument.from_front_matter(text))
     actual_dir = path.parent.relative_to(out_dir)
     if actual_dir.parts[0] == UNCATEGORIZED and category:
         warnings.append("مصنَّف لكنه في غير-مصنف")
@@ -184,6 +164,25 @@ def lint_corpus(out_dir: Path) -> tuple[int, dict[Path, list[str]], dict[Path, l
     return len(files), errors, warnings
 
 
+def _kind(message: str) -> str:
+    """نوع التحذير: نصّه قبل أول تفصيل متغيّر (رقم، اقتباس، شرطة، نقطتان)."""
+    return re.split(r"[:«—]| \d", message, maxsplit=1)[0].strip()
+
+
+def summarize(issues: dict[Path, list[str]]) -> list[tuple[str, int]]:
+    """عدد كل نوع من الرسائل، الأكثر أولًا.
+
+    مئات تحذيرات «خلل تسلسل» المشروعة (فجوة حقيقية في ترقيم المصدر) كانت
+    تُغرق تحذيرًا نادرًا يستحق النظر؛ الملخّص يُظهر كل نوع بعدده قبل التفصيل.
+    """
+    counts: dict[str, int] = {}
+    for messages in issues.values():
+        for message in messages:
+            kind = _kind(message)
+            counts[kind] = counts.get(kind, 0) + 1
+    return sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+
+
 def run(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m scripts.lint_corpus",
@@ -205,6 +204,10 @@ def run(argv: list[str] | None = None) -> int:
                 print(f"    - {m}", file=sys.stderr)
 
     warn_count = sum(len(v) for v in warnings.values())
+    if warnings:
+        print("\nملخّص التحذيرات حسب النوع:", file=sys.stderr)
+        for kind, count in summarize(warnings):
+            print(f"  {count:>5}  {kind}", file=sys.stderr)
     if warnings and (args.warnings or args.strict):
         print(f"\nتحذيرات ({warn_count}) في {len(warnings)} ملفًا:", file=sys.stderr)
         for path, msgs in warnings.items():

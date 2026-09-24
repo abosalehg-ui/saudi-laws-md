@@ -73,3 +73,25 @@ def test_unique_titles_untouched(tmp_path):
 
     assert group_count == 0
     assert touched == 0
+
+
+def test_orphaned_link_removed_when_sibling_disappears(tmp_path):
+    """نسخة حُذفت (أو تغيّر عنوانها): حقل النسخة الباقية لا يبقى رابطًا يتيمًا."""
+    a = tmp_path / "أ" / "نظام.md"
+    b = tmp_path / "ب" / "نظام.md"
+    _write(a, "نظام", "https://qanoonsa.com/p/1/")
+    _write(b, "نظام", "https://nezams.com/x/")
+    annotate_duplicates(tmp_path)
+    assert "also_available_from" in a.read_text(encoding="utf-8")
+    b.unlink()
+    _, touched = annotate_duplicates(tmp_path)
+    assert touched == 1
+    assert "also_available_from" not in a.read_text(encoding="utf-8")
+    # ولا يُلمس ثانيةً (idempotent)
+    assert annotate_duplicates(tmp_path) == (0, 0)
+
+
+def test_titles_with_escaped_quotes_group_together(tmp_path):
+    _write(tmp_path / "أ" / "1.md", 'قرار \\"أ\\"', "https://qanoonsa.com/p/1/")
+    _write(tmp_path / "ب" / "2.md", 'قرار \\"أ\\"', "https://nezams.com/x/")
+    assert list(find_duplicate_groups(tmp_path)) == ['قرار "أ"']

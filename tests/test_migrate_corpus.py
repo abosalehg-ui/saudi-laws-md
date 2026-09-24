@@ -1,6 +1,7 @@
 """اختبارات هجرة حقول المُدوَّنة: الحالة المغلقة، التواريخ الآلية، الوثائق الناقصة."""
 
-from scripts.migrate_corpus import body_text, migrate, migrate_text
+from scripts.frontmatter import body_text
+from scripts.migrate_corpus import migrate, migrate_text
 
 LONG_BODY = "يسري هذا النظام على جميع المنشآت وفروعها العاملة في المملكة، " * 3
 
@@ -33,8 +34,7 @@ def test_sortable_dates_are_derived_without_touching_the_original():
 
 def test_gregorian_date_derived_from_gazette_reference():
     out, _ = migrate_text(
-        _doc('title: "س"\ngazette_ref: "نشر في عدد جريدة أم القرى رقم (٥١٢٠) '
-             'الصادر في ٧ من نوفمبر ٢٠٢٥م."')
+        _doc('title: "س"\ngazette_ref: "نشر في عدد جريدة أم القرى رقم (٥١٢٠) الصادر في ٧ من نوفمبر ٢٠٢٥م."')
     )
     assert 'publish_date_gregorian: "2025-11-07"' in out
 
@@ -54,9 +54,7 @@ def test_stale_incomplete_mark_is_removed_when_body_returns():
 
 def test_migration_is_idempotent(tmp_path):
     path = tmp_path / "a.md"
-    path.write_text(
-        _doc('title: "س"\nstatus: "غير ساري"\nissued_date: "1443/10/4هـ"'), encoding="utf-8"
-    )
+    path.write_text(_doc('title: "س"\nstatus: "غير ساري"\nissued_date: "1443/10/4هـ"'), encoding="utf-8")
     assert migrate(tmp_path)[0] == 1
     once = path.read_text(encoding="utf-8")
     assert migrate(tmp_path)[0] == 0

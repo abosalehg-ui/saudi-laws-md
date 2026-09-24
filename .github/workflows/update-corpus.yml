@@ -36,9 +36,17 @@ jobs:
 
       - name: تحديد شريحة هذا الأسبوع
         id: shard
+        # المُدخل يمرّ عبر متغيّر بيئة لا بتعبير سياق داخل السكربت: التعبير
+        # يُستبدل نصيًا قبل تشغيل bash، فمُدخل مثل ‎0/4"; curl …‎ كان يُنفَّذ
+        # بصلاحيات الكتابة. ويُتحقق من صيغته قبل أي استخدام.
+        env:
+          SHARD_INPUT: ${{ github.event.inputs.shard }}
         run: |
-          if [ -n "${{ github.event.inputs.shard }}" ]; then
-            echo "value=${{ github.event.inputs.shard }}" >> "$GITHUB_OUTPUT"
+          if [[ "$SHARD_INPUT" =~ ^[0-9]+/[0-9]+$ ]]; then
+            echo "value=$SHARD_INPUT" >> "$GITHUB_OUTPUT"
+          elif [ -n "$SHARD_INPUT" ]; then
+            echo "صيغة شريحة غير صالحة (المتوقع I/N مثل 2/4)" >&2
+            exit 1
           else
             # رقم الأسبوع ISO مقسومًا على 4: كل وثيقة تُزار مرة كل شهر
             echo "value=$(( $(date -u +%-V) % 4 ))/4" >> "$GITHUB_OUTPUT"
@@ -48,11 +56,13 @@ jobs:
         # لا ‎|| true‎ هنا: كان يبتلع الفشل الكلي (سقوط الموقعين أو تغيّر
         # بنيتهما) فتنتهي التشغيلة «بنجاح» بلا PR وبلا إشارة. الآن يُتسامح
         # مع فشل روابط مفردة، ويُفشَل عند تجاوز نسبة الفشل العتبة.
+        env:
+          SHARD: ${{ steps.shard.outputs.value }}
         run: |
           set +e
           python -m scripts.main --discover qanoonsa,nezams \
             --check-updates --resume --delay 2 --report \
-            --quiet-warnings --shard "${{ steps.shard.outputs.value }}"
+            --quiet-warnings --shard "$SHARD"
           set -e
           python -m scripts.check_run_health logs/summary.md --max-failure-rate 0.2
 
@@ -80,6 +90,7 @@ jobs:
       - name: فتح PR بالتغييرات إن وُجدت
         env:
           GH_TOKEN: ${{ github.token }}
+          SHARD: ${{ steps.shard.outputs.value }}
         run: |
           if [ -z "$(git status --porcelain laws index.json README.md)" ]; then
             echo "لا تغييرات في laws/ — لا PR."
@@ -95,4 +106,4 @@ jobs:
           git push -u origin "$branch"
           gh pr create --draft --base main --head "$branch" \
             --title "تحديث دوري للمُدوَّنة $(date -u +%Y-%m-%d)" \
-            --body "تشغيل آلي (\`--check-updates\`) على الشريحة ${{ steps.shard.outputs.value }} من qanoonsa وnezams. راجِع الفروق يدويًا قبل الدمج؛ تقرير التشغيلة مرفوع كأثر (artifact) باسم summary."
+            --body "تشغيل آلي (\`--check-updates\`) على الشريحة $SHARD من qanoonsa وnezams. راجِع الفروق يدويًا قبل الدمج؛ تقرير التشغيلة مرفوع كأثر (artifact) باسم summary."

@@ -4,8 +4,13 @@ from scripts.report import RunResult, build_summary
 def test_summary_counts_and_sections():
     results = [
         RunResult(url="u1", status="ok", title="نظام العمل", doc_type="نظام"),
-        RunResult(url="u2", status="ok", title="لائحة", doc_type="لائحة",
-                  warnings=["خلل في التسلسل: بعد المادة 5 جاءت المادة 79"]),
+        RunResult(
+            url="u2",
+            status="ok",
+            title="لائحة",
+            doc_type="لائحة",
+            warnings=["خلل في التسلسل: بعد المادة 5 جاءت المادة 79"],
+        ),
         RunResult(url="u3", status="failed", reason="لم يُستخرج أي مادة"),
     ]
     md = build_summary(results, skipped=4)

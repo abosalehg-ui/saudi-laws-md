@@ -31,7 +31,7 @@ from .formatter import (
     output_path,
     prune_empty_dirs,
 )
-from .frontmatter import read_head
+from .frontmatter import read_field, read_head
 from .report import RunResult, build_summary
 from .schema import MIN_BODY_CHARS, LawDocument, body_length, validate_document
 from .status import normalize_status
@@ -54,17 +54,13 @@ def log_done(url: str, log_path: Path) -> None:
         f.write(url + "\n")
 
 
-_SOURCE_URL_RE = re.compile(r'^source_url:\s*"?(.*?)"?\s*$', re.MULTILINE)
-_ETAG_RE = re.compile(r'^etag:\s*"?(.*?)"?\s*$', re.MULTILINE)
-_LAST_MODIFIED_RE = re.compile(r'^last_modified:\s*"?(.*?)"?\s*$', re.MULTILINE)
 # عنوان مادة في متن Markdown (## أو ### المادة ...)، لكشف أن ملفًا قائمًا يحوي مواد
 _ARTICLE_HEADING_MD_RE = re.compile(r"^#{2,3}\s*المادة\s", re.MULTILINE)
 
 
 def _read_source_url(path: Path) -> str | None:
     """يقرأ source_url من كتلة front matter لملف مخرجات موجود (أو None)."""
-    match = _SOURCE_URL_RE.search(read_head(path))
-    return match.group(1) if match and match.group(1) else None
+    return read_field(read_head(path), "source_url")
 
 
 def _file_has_articles(path: Path) -> bool:
@@ -128,14 +124,12 @@ def build_source_index(out_dir: Path) -> dict[str, OutputEntry]:
         return index
     for md in out_dir.rglob("*.md"):
         head = read_head(md)
-        match = _SOURCE_URL_RE.search(head)
-        if match and match.group(1):
-            etag_m = _ETAG_RE.search(head)
-            lm_m = _LAST_MODIFIED_RE.search(head)
-            index[canonical_url(match.group(1))] = OutputEntry(
+        source_url = read_field(head, "source_url")
+        if source_url:
+            index[canonical_url(source_url)] = OutputEntry(
                 path=md,
-                etag=etag_m.group(1) if etag_m and etag_m.group(1) else None,
-                last_modified=lm_m.group(1) if lm_m and lm_m.group(1) else None,
+                etag=read_field(head, "etag"),
+                last_modified=read_field(head, "last_modified"),
             )
     return index
 
@@ -153,11 +147,7 @@ def load_done_from_output(out_dir: Path) -> set[str]:
 def load_done(log_path: Path) -> set[str]:
     if not log_path.exists():
         return set()
-    return {
-        canonical_url(line.strip())
-        for line in log_path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    }
+    return {canonical_url(line.strip()) for line in log_path.read_text(encoding="utf-8").splitlines() if line.strip()}
 
 
 def process_html(
@@ -176,13 +166,11 @@ def process_html(
     if existing is not None and doc.body and not doc.articles:
         prior = existing.get(doc.source_url)
         if prior is not None and prior.path.exists() and _file_has_articles(prior.path):
-            raise ParseError(
-                "ناتج نثري بلا مواد سيطمس ملفًا قائمًا يحوي مواد (يُحتمل تغيّر بنية المصدر)"
-            )
+            raise ParseError("ناتج نثري بلا مواد سيطمس ملفًا قائمًا يحوي مواد (يُحتمل تغيّر بنية المصدر)")
     # حارس الوثيقة الجوفاء: صفحات كثيرة في qanoonsa تعرض البيانات الوصفية
     # فقط ونصّها في مرفق PDF. كتابتها تُنتج ملفًا يدّعي أنه نصّ النظام
-    # وليس فيه سوى سطر تاريخ — 191 حالة تسرّبت هكذا. نرفضها عند المصدر
-    # ونسجّلها فشلًا كي تظهر في التقرير بدل أن تدخل المُدوَّنة بصمت.
+    # وليس فيه سوى سطر تاريخ. نرفضها عند المصدر ونسجّلها فشلًا كي تظهر
+    # في التقرير بدل أن تدخل المُدوَّنة بصمت.
     if body_length(doc) < MIN_BODY_CHARS:
         raise ParseError(
             f"وثيقة جوفاء: متن بطول {body_length(doc)} محرفًا فقط "
@@ -193,9 +181,7 @@ def process_html(
     doc.category = args.category or resolve_category(doc.category, doc.doc_type)
     doc.status, doc.status_note = normalize_status(doc.status)
     doc.issued_date_hijri = parse_hijri(doc.issued_date) or parse_hijri(doc.approval_date_hijri)
-    doc.publish_date_gregorian = parse_gregorian(doc.publish_date) or parse_gregorian(
-        doc.gazette_ref
-    )
+    doc.publish_date_gregorian = parse_gregorian(doc.publish_date) or parse_gregorian(doc.gazette_ref)
     doc.etag = etag
     doc.last_modified = last_modified
     warnings = validate_document(doc)
@@ -322,10 +308,7 @@ def select_shard(urls: list[str], index: int, count: int) -> list[str]:
     """
     if count <= 1:
         return urls
-    return [
-        url for url in urls
-        if int(hashlib.md5(url.encode("utf-8")).hexdigest(), 16) % count == index
-    ]
+    return [url for url in urls if int(hashlib.md5(url.encode("utf-8")).hexdigest(), 16) % count == index]
 
 
 def _read_url_file(path_text: str, parser: argparse.ArgumentParser) -> list[str]:
@@ -336,8 +319,7 @@ def _read_url_file(path_text: str, parser: argparse.ArgumentParser) -> list[str]
     return [line.strip() for line in lines if line.strip() and not line.startswith("#")]
 
 
-def _collect_urls(args: argparse.Namespace, fetcher: Fetcher,
-                  parser: argparse.ArgumentParser) -> list[str]:
+def _collect_urls(args: argparse.Namespace, fetcher: Fetcher, parser: argparse.ArgumentParser) -> list[str]:
     """يجمع الروابط من كل مصادرها (مباشرة، ملف، اكتشاف) ويطبّق الشريحة."""
     urls = list(args.urls)
     if args.from_file:
@@ -414,9 +396,7 @@ def _process_urls(urls: list[str], args: argparse.Namespace, fetcher: Fetcher) -
         try:
             prior = existing.get(url) if args.check_updates else None
             if prior is not None:
-                result = fetcher.get_conditional(
-                    url, etag=prior.etag, last_modified=prior.last_modified
-                )
+                result = fetcher.get_conditional(url, etag=prior.etag, last_modified=prior.last_modified)
                 if result.not_modified:
                     stats.processed += 1
                     stats.unchanged += 1
@@ -426,8 +406,13 @@ def _process_urls(urls: list[str], args: argparse.Namespace, fetcher: Fetcher) -
                         log_done(url, DONE_LOG)
                     continue
                 doc, warnings = process_html(
-                    result.text, url, source, args, existing,
-                    etag=result.etag, last_modified=result.last_modified,
+                    result.text,
+                    url,
+                    source,
+                    args,
+                    existing,
+                    etag=result.etag,
+                    last_modified=result.last_modified,
                 )
             else:
                 html = fetcher.get(url)
@@ -441,10 +426,15 @@ def _process_urls(urls: list[str], args: argparse.Namespace, fetcher: Fetcher) -
             stats.processed += 1
             if warnings:
                 stats.warned += 1
-            stats.results.append(RunResult(
-                url=url, status="ok", title=doc.title,
-                doc_type=doc.doc_type, warnings=warnings,
-            ))
+            stats.results.append(
+                RunResult(
+                    url=url,
+                    status="ok",
+                    title=doc.title,
+                    doc_type=doc.doc_type,
+                    warnings=warnings,
+                )
+            )
             if args.resume:
                 log_done(url, DONE_LOG)
     return stats
@@ -459,7 +449,10 @@ def _run_html_mode(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
     try:
         process_html(
             Path(args.html).read_text(encoding="utf-8"),
-            canonical_url(args.url), source, args, existing,
+            canonical_url(args.url),
+            source,
+            args,
+            existing,
         )
     except (ParseError, OSError, ValueError) as exc:
         log_failure(args.html, str(exc))
@@ -472,9 +465,7 @@ def _write_report(args: argparse.Namespace, stats: RunStats) -> None:
     report_path = Path(args.report)
     try:
         report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(
-            build_summary(stats.results, skipped=stats.skipped), encoding="utf-8"
-        )
+        report_path.write_text(build_summary(stats.results, skipped=stats.skipped), encoding="utf-8")
     except OSError as exc:
         print(f"تعذّرت كتابة التقرير في «{report_path}»: {exc}", file=sys.stderr)
         return

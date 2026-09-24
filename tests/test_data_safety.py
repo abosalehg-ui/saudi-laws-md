@@ -30,10 +30,40 @@ def test_collision_between_different_docs_is_disambiguated(tmp_path, monkeypatch
     out = str(tmp_path / "laws")
     page = _write(tmp_path, "a.html", ARTICLE_PAGE.format(title="نظام مكرر العنوان"))
 
-    assert run(["--html", str(page), "--source", "qanoonsa",
-                "--url", "https://qanoonsa.com/p/111/", "--category", "ت", "--out", out]) == 0
-    assert run(["--html", str(page), "--source", "qanoonsa",
-                "--url", "https://qanoonsa.com/p/222/", "--category", "ت", "--out", out]) == 0
+    assert (
+        run(
+            [
+                "--html",
+                str(page),
+                "--source",
+                "qanoonsa",
+                "--url",
+                "https://qanoonsa.com/p/111/",
+                "--category",
+                "ت",
+                "--out",
+                out,
+            ]
+        )
+        == 0
+    )
+    assert (
+        run(
+            [
+                "--html",
+                str(page),
+                "--source",
+                "qanoonsa",
+                "--url",
+                "https://qanoonsa.com/p/222/",
+                "--category",
+                "ت",
+                "--out",
+                out,
+            ]
+        )
+        == 0
+    )
 
     files = sorted(p.name for p in (tmp_path / "laws" / "ت").glob("*.md"))
     assert files == ["نظام مكرر العنوان (222).md", "نظام مكرر العنوان.md"]
@@ -87,15 +117,13 @@ def test_prose_result_refuses_to_clobber_existing_article_file(tmp_path, monkeyp
     out = str(tmp_path / "laws")
     url = "https://qanoonsa.com/p/333/"
     good = _write(tmp_path, "good.html", ARTICLE_PAGE.format(title="نظام مهم"))
-    assert run(["--html", str(good), "--source", "qanoonsa", "--url", url,
-                "--category", "ت", "--out", out]) == 0
+    assert run(["--html", str(good), "--source", "qanoonsa", "--url", url, "--category", "ت", "--out", out]) == 0
     target = tmp_path / "laws" / "ت" / "نظام مهم.md"
     original = target.read_text(encoding="utf-8")
     assert "## المادة الأولى" in original
 
     bad = _write(tmp_path, "bad.html", PROSE_PAGE.format(title="نظام مهم"))
-    code = run(["--html", str(bad), "--source", "qanoonsa", "--url", url,
-                "--category", "ت", "--out", out])
+    code = run(["--html", str(bad), "--source", "qanoonsa", "--url", url, "--category", "ت", "--out", out])
     assert code == 1  # رُفض وسُجّل فشلًا
     assert target.read_text(encoding="utf-8") == original  # الملف الجيد بلا مساس
     failed = (tmp_path / "logs" / "failed.txt").read_text(encoding="utf-8")
@@ -107,6 +135,21 @@ def test_new_prose_doc_still_allowed(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     out = str(tmp_path / "laws")
     page = _write(tmp_path, "p.html", PROSE_PAGE.format(title="دليل إجرائي"))
-    assert run(["--html", str(page), "--source", "qanoonsa",
-                "--url", "https://qanoonsa.com/p/444/", "--category", "ت", "--out", out]) == 0
+    assert (
+        run(
+            [
+                "--html",
+                str(page),
+                "--source",
+                "qanoonsa",
+                "--url",
+                "https://qanoonsa.com/p/444/",
+                "--category",
+                "ت",
+                "--out",
+                out,
+            ]
+        )
+        == 0
+    )
     assert (tmp_path / "laws" / "ت" / "دليل إجرائي.md").exists()
