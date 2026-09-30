@@ -1415,9 +1415,12 @@
     "doc_type": "نظام",
     "category": "أنظمة الأمن الداخلي والأحوال المدنية والأنظمة الجنائية",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-الأسلحة-والذخائر/",
-    "issued_date_hijri": "1426-07-25"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/a445af93-671f-496b-818a-a9a700f19150/1",
+    "issued_date_hijri": "1426-07-25",
+    "also_available_from": [
+      "https://nezams.com/نظام-الأسلحة-والذخائر/"
+    ]
   },
   {
     "path": "laws/أنظمة الأمن الداخلي والأحوال المدنية والأنظمة الجنائية/نظام الإقامة المميزة.md",
@@ -1484,9 +1487,12 @@
     "doc_type": "نظام",
     "category": "أنظمة الأمن الداخلي والأحوال المدنية والأنظمة الجنائية",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-المرور/",
-    "issued_date_hijri": "1428-10-26"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/85364e57-c01e-41ba-8def-a9a700f183e9/1",
+    "issued_date_hijri": "1428-10-26",
+    "also_available_from": [
+      "https://nezams.com/نظام-المرور/"
+    ]
   },
   {
     "path": "laws/أنظمة الأمن الداخلي والأحوال المدنية والأنظمة الجنائية/نظام جمع التبرعات.md",
@@ -1590,9 +1596,12 @@
     "doc_type": "نظام",
     "category": "أنظمة الأمن الداخلي والأحوال المدنية والأنظمة الجنائية",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-مكافحة-جريمة-التحرش/",
-    "issued_date_hijri": "1439-09-16"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/f9de1b7f-7526-4c44-b9f3-a9f8015cf5b6/1",
+    "issued_date_hijri": "1439-09-16",
+    "also_available_from": [
+      "https://nezams.com/نظام-مكافحة-جريمة-التحرش/"
+    ]
   },
   {
     "path": "laws/أنظمة الأمن الداخلي والأحوال المدنية والأنظمة الجنائية/نظام مكافحة غسل الأموال القديم.md",
@@ -1678,9 +1687,12 @@
     "doc_type": "نظام",
     "category": "أنظمة الإعلام والثقافة والنشر",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام_المؤسسات_الصحفية-١٤٢٢هـ/",
-    "issued_date_hijri": "1422-05-08"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/c385b62c-c635-484c-afa1-a9a700f16fe1/1",
+    "issued_date_hijri": "1422-05-08",
+    "also_available_from": [
+      "https://nezams.com/نظام_المؤسسات_الصحفية-١٤٢٢هـ/"
+    ]
   },
   {
     "path": "laws/أنظمة الإعلام والثقافة والنشر/نظام المركز الوطني للوثائق والمحفوظات.md",
@@ -1708,9 +1720,12 @@
     "doc_type": "نظام",
     "category": "أنظمة الإعلام والثقافة والنشر",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-الوثائق-والمحفوظات/",
-    "issued_date_hijri": "1409-10-23"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/a4d3a985-a838-47e8-977e-a9a700f16c1c/1",
+    "issued_date_hijri": "1409-10-23",
+    "also_available_from": [
+      "https://nezams.com/نظام-الوثائق-والمحفوظات/"
+    ]
   },
   {
     "path": "laws/أنظمة الإعلام والثقافة والنشر/نظام حماية حقوق المؤلف.md",
@@ -2298,8 +2313,11 @@
     "doc_type": "نظام",
     "category": "أنظمة التجارة والاقتصاد والاستثمار",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-الشركات-لعام-١٤٤٣هـ/"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/a8376aea-1bc3-49d4-9027-aed900b555af/1",
+    "also_available_from": [
+      "https://nezams.com/نظام-الشركات-لعام-١٤٤٣هـ/"
+    ]
   },
   {
     "path": "laws/أنظمة التجارة والاقتصاد والاستثمار/نظام الصندوق السعودي للتنمية.md",
@@ -2348,9 +2366,12 @@
     "category": "أنظمة التجارة والاقتصاد والاستثمار",
     "status": "ملغى",
     "status_note": "ملغي بصدور النظام الجديد الصادر بالمرسوم الملكي رقم (م/79) وتاريخ 1446/3/6هـ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-القياس-والمعايرة-القديم/",
-    "issued_date_hijri": "1434-11-13"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/ad9ed861-70e6-4d31-9268-b20400d68915/1",
+    "issued_date_hijri": "1434-11-13",
+    "also_available_from": [
+      "https://nezams.com/نظام-القياس-والمعايرة-القديم/"
+    ]
   },
   {
     "path": "laws/أنظمة التجارة والاقتصاد والاستثمار/نظام المحاسبين القانونيين.md",
@@ -3231,9 +3252,12 @@
     "doc_type": "نظام",
     "category": "أنظمة الخدمة العسكرية",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-الكليات-العسكرية/",
-    "issued_date_hijri": "1397-07-13"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/e36e899b-f29b-4db0-8b71-a9a700f23065/1",
+    "issued_date_hijri": "1397-07-13",
+    "also_available_from": [
+      "https://nezams.com/نظام-الكليات-العسكرية/"
+    ]
   },
   {
     "path": "laws/أنظمة الخدمة العسكرية/نظام الملابس والتجهيزات العسكرية الفردية.md",
@@ -3251,9 +3275,12 @@
     "doc_type": "نظام",
     "category": "أنظمة الخدمة العسكرية",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-خدمة-الأفراد-١٣٩٧هـ/",
-    "issued_date_hijri": "1397-03-24"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/9b461caf-dc11-46bd-a8fd-ac74009a8724/1",
+    "issued_date_hijri": "1397-03-24",
+    "also_available_from": [
+      "https://nezams.com/نظام-خدمة-الأفراد-١٣٩٧هـ/"
+    ]
   },
   {
     "path": "laws/أنظمة الخدمة العسكرية/نظام خدمة الضباط.md",
@@ -3261,8 +3288,11 @@
     "doc_type": "نظام",
     "category": "أنظمة الخدمة العسكرية",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-خدمة-الضباط/"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/8a12c94e-5a31-45cf-9c57-ac4400be8677/1",
+    "also_available_from": [
+      "https://nezams.com/نظام-خدمة-الضباط/"
+    ]
   },
   {
     "path": "laws/أنظمة الخدمة العسكرية/نظام مجلس الخدمة العسكرية.md",
@@ -3931,9 +3961,12 @@
     "title": "نظام الإثبات",
     "doc_type": "نظام",
     "category": "أنظمة السلطة القضائية وحقوق الإنسان",
-    "source": "qanoonsa",
-    "source_url": "https://qanoonsa.com/p/491603/",
-    "publish_date_gregorian": "2022-01-07"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/2716057c-c097-4bad-8e1e-ae1400c678d5/1",
+    "publish_date_gregorian": "2022-01-07",
+    "also_available_from": [
+      "https://qanoonsa.com/p/491603/"
+    ]
   },
   {
     "path": "laws/أنظمة السلطة القضائية وحقوق الإنسان/نظام الإجراءات الجزائية ولائحته التنفيذية.md",
@@ -3951,9 +3984,12 @@
     "doc_type": "نظام",
     "category": "أنظمة السلطة القضائية وحقوق الإنسان",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-التحكيم/",
-    "issued_date_hijri": "1433-05-24"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/5535039e-13da-43f6-8f53-a9a700f26485/1",
+    "issued_date_hijri": "1433-05-24",
+    "also_available_from": [
+      "https://nezams.com/نظام-التحكيم/"
+    ]
   },
   {
     "path": "laws/أنظمة السلطة القضائية وحقوق الإنسان/نظام التكاليف القضائية ولائحته التنفيذية.md",
@@ -3980,8 +4016,11 @@
     "doc_type": "نظام",
     "category": "أنظمة السلطة القضائية وحقوق الإنسان",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-التنفيذ/"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/c81ba2f1-1bf1-443b-9b1c-a9a700f27110/1",
+    "also_available_from": [
+      "https://nezams.com/نظام-التنفيذ/"
+    ]
   },
   {
     "path": "laws/أنظمة السلطة القضائية وحقوق الإنسان/نظام التوثيق ولائحته التنفيذية.md",
@@ -3999,9 +4038,12 @@
     "doc_type": "نظام",
     "category": "أنظمة السلطة القضائية وحقوق الإنسان",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-القضاء/",
-    "issued_date_hijri": "1428-09-19"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/ea1765a3-dec3-41a0-a32f-a9a700f26d58/1",
+    "issued_date_hijri": "1428-09-19",
+    "also_available_from": [
+      "https://nezams.com/نظام-القضاء/"
+    ]
   },
   {
     "path": "laws/أنظمة السلطة القضائية وحقوق الإنسان/نظام المحاماة ولائحته التنفيذية.md",
@@ -4039,9 +4081,12 @@
     "doc_type": "نظام",
     "category": "أنظمة السلطة القضائية وحقوق الإنسان",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-المعاملات-المدنية/",
-    "issued_date_hijri": "1444-11-29"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/655fdb42-8c96-422b-b8c4-b04f0095c94c/1",
+    "issued_date_hijri": "1444-11-29",
+    "also_available_from": [
+      "https://nezams.com/نظام-المعاملات-المدنية/"
+    ]
   },
   {
     "path": "laws/أنظمة السلطة القضائية وحقوق الإنسان/نظام النيابة العامة.md",
@@ -4804,9 +4849,12 @@
     "doc_type": "نظام",
     "category": "أنظمة الطاقة والصناعة والتعدين",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-المعادن-الثمينة-والأحجار-الكريم/",
-    "issued_date_hijri": "1403-07-10"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/0f54d227-1450-4231-93cd-a9a700f29821/1",
+    "issued_date_hijri": "1403-07-10",
+    "also_available_from": [
+      "https://nezams.com/نظام-المعادن-الثمينة-والأحجار-الكريم/"
+    ]
   },
   {
     "path": "laws/أنظمة الطاقة والصناعة والتعدين/نظام المواد البترولية والبتروكيماوية.md",
@@ -4944,9 +4992,12 @@
     "doc_type": "لائحة",
     "category": "أنظمة العمل والرعاية الاجتماعية",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/اللائحة-التنفيذية-لنظام-الأحداث/",
-    "issued_date_hijri": "1442-04-16"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/9f08ef46-6240-4fd7-a437-ac8900df75a8/1",
+    "issued_date_hijri": "1442-04-16",
+    "also_available_from": [
+      "https://nezams.com/اللائحة-التنفيذية-لنظام-الأحداث/"
+    ]
   },
   {
     "path": "laws/أنظمة العمل والرعاية الاجتماعية/اللائحة التنفيذية لنظام حماية الطفل.md",
@@ -5093,9 +5144,12 @@
     "doc_type": "نظام",
     "category": "أنظمة العمل والرعاية الاجتماعية",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-الأحداث/",
-    "issued_date_hijri": "1439-11-19"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/4ec27eee-f917-408c-85eb-a9f6011ea426/1",
+    "issued_date_hijri": "1439-11-19",
+    "also_available_from": [
+      "https://nezams.com/نظام-الأحداث/"
+    ]
   },
   {
     "path": "laws/أنظمة العمل والرعاية الاجتماعية/نظام التأمين ضد التعطل عن العمل.md",
@@ -5153,9 +5207,12 @@
     "doc_type": "نظام",
     "category": "أنظمة العمل والرعاية الاجتماعية",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-الحماية-من-الإيذاء/",
-    "issued_date_hijri": "1434-11-15"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/83f450eb-7985-461f-b053-a9a700f2ba08/1",
+    "issued_date_hijri": "1434-11-15",
+    "also_available_from": [
+      "https://nezams.com/نظام-الحماية-من-الإيذاء/"
+    ]
   },
   {
     "path": "laws/أنظمة العمل والرعاية الاجتماعية/نظام الضمان الاجتماعي القديم.md",
@@ -5204,9 +5261,12 @@
     "doc_type": "نظام",
     "category": "أنظمة العمل والرعاية الاجتماعية",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-العمل/",
-    "issued_date_hijri": "1426-08-23"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/08381293-6388-48e2-8ad2-a9a700f2aa94/1",
+    "issued_date_hijri": "1426-08-23",
+    "also_available_from": [
+      "https://nezams.com/نظام-العمل/"
+    ]
   },
   {
     "path": "laws/أنظمة العمل والرعاية الاجتماعية/نظام الهيئة العامة للأوقاف.md",
@@ -5778,9 +5838,12 @@
     "doc_type": "نظام",
     "category": "أنظمة المواصلات والاتصالات",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-التعاملات-الإلكترونية/",
-    "issued_date_hijri": "1428-03-08"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/6f509360-2c39-4358-ae2a-a9a700f2ed16/1",
+    "issued_date_hijri": "1428-03-08",
+    "also_available_from": [
+      "https://nezams.com/نظام-التعاملات-الإلكترونية/"
+    ]
   },
   {
     "path": "laws/أنظمة المواصلات والاتصالات/نظام الخطوط الحديدية.md",
@@ -6478,9 +6541,12 @@
     "doc_type": "نظام",
     "category": "الأنظمة الأساسية",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/النظام-الأساسي-للحكم-عام-١٤١٢هـ/",
-    "issued_date_hijri": "1412-08-27"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/16b97fcb-4833-4f66-8531-a9a700f161b6/1",
+    "issued_date_hijri": "1412-08-27",
+    "also_available_from": [
+      "https://nezams.com/النظام-الأساسي-للحكم-عام-١٤١٢هـ/"
+    ]
   },
   {
     "path": "laws/الأنظمة الأساسية/نظام المناطق.md",
@@ -6508,9 +6574,12 @@
     "doc_type": "نظام",
     "category": "الأنظمة الأساسية",
     "status": "نافذ",
-    "source": "nezams",
-    "source_url": "https://nezams.com/نظام-مجلس-الوزراء-عام-١٤١٤هـ/",
-    "issued_date_hijri": "1414-03-03"
+    "source": "boe",
+    "source_url": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/93e87aa7-f344-4711-b97c-a9a700f1662b/1",
+    "issued_date_hijri": "1414-03-03",
+    "also_available_from": [
+      "https://nezams.com/نظام-مجلس-الوزراء-عام-١٤١٤هـ/"
+    ]
   },
   {
     "path": "laws/الأنظمة الأساسية/نظام هيئة البيعة.md",
