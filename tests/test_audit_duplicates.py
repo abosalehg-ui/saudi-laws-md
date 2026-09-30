@@ -95,3 +95,22 @@ def test_titles_with_escaped_quotes_group_together(tmp_path):
     _write(tmp_path / "أ" / "1.md", 'قرار \\"أ\\"', "https://qanoonsa.com/p/1/")
     _write(tmp_path / "ب" / "2.md", 'قرار \\"أ\\"', "https://nezams.com/x/")
     assert list(find_duplicate_groups(tmp_path)) == ['قرار "أ"']
+
+
+def test_curated_source_keeps_link_to_the_copy_it_replaced(tmp_path):
+    """نصّ رسمي (boe) حلّ محلّ نسخة مكشوطة: رابطها ليس يتيمًا بل مرجع مقصود،
+    وحذفه يجعل الكاشط يعيد إنشاء النسخة المكشوطة مكرّرة."""
+    out = tmp_path / "laws"
+    path = out / "a" / "نظام العمل.md"
+    path.parent.mkdir(parents=True)
+    text = (
+        '---\ntitle: "نظام العمل"\nsource: "boe"\n'
+        'source_url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/x/1"\n'
+        'also_available_from: ["https://nezams.com/نظام-العمل/"]\n---\n\n# نظام العمل\n'
+    )
+    path.write_text(text, encoding="utf-8")
+
+    _, touched = annotate_duplicates(out)
+
+    assert touched == 0
+    assert path.read_text(encoding="utf-8") == text

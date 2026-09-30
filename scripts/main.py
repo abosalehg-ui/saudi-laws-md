@@ -31,9 +31,9 @@ from .formatter import (
     output_path,
     prune_empty_dirs,
 )
-from .frontmatter import read_field, read_head
+from .frontmatter import read_field, read_head, read_list_field, split
 from .report import RunResult, build_summary
-from .schema import MIN_BODY_CHARS, LawDocument, body_length, validate_document
+from .schema import CURATED_SOURCES, MIN_BODY_CHARS, LawDocument, body_length, validate_document
 from .status import normalize_status
 from .urls import canonical_url
 
@@ -134,6 +134,54 @@ def build_source_index(out_dir: Path) -> dict[str, OutputEntry]:
     return index
 
 
+def build_curated_aliases(out_dir: Path) -> dict[str, Path]:
+    """يبني فهرس روابط النسخ المكشوطة التي حلّ محلّها نصّ رسمي ← ملف النصّ الرسمي.
+
+    ملف من مصدر في CURATED_SOURCES يحمل ``source_url`` رسميًا، ورابط نسخته
+    المكشوطة السابقة في ``also_available_from``. بلا هذا الفهرس لا يعرف
+    الكاشط أن الرابط مغطّى، فيعدّه وثيقة جديدة ويكتبها بجانب النصّ الرسمي
+    باسم مميّز (_resolve_collision) — نسخة مكرّرة تعود في كل تشغيلة.
+    """
+    aliases: dict[str, Path] = {}
+    if not out_dir.exists():
+        return aliases
+    for md in out_dir.rglob("*.md"):
+        head = read_head(md)
+        if read_field(head, "source") not in CURATED_SOURCES:
+            continue
+        for url in read_list_field(head, "also_available_from"):
+            aliases[canonical_url(url)] = md
+    return aliases
+
+
+# حقول لا يكتبها المحوِّل أو تتغيّر في كل جلب دون أن تمسّ الوثيقة:
+# retrieved_at تاريخ الجلب نفسه، وalso_available_from تكتبه الصيانة لاحقًا
+_VOLATILE_FIELDS = frozenset({"retrieved_at", "also_available_from"})
+
+
+def _content_key(text: str) -> tuple[tuple[str, ...], str]:
+    """مفتاح مقارنة لمحتوى ملف: أسطر الـ front matter بلا الحقول المتقلّبة
+    (مرتّبة، فإعادة ترتيب الحقول لا تُعدّ تغييرًا) مع المتن كما هو."""
+    head, body = split(text)
+    lines = (head or "").splitlines()
+    kept = sorted(line for line in lines if line.split(":", 1)[0] not in _VOLATILE_FIELDS)
+    return tuple(kept), body
+
+
+def _unchanged_on_disk(path: Path, new_text: str) -> bool:
+    """هل الملف القائم في path مطابق للنصّ الجديد عدا الحقول المتقلّبة؟
+
+    الجلب الشرطي لا ينفع عمليًا (المصدران لا يُرجعان ETag/Last-Modified)،
+    فكانت كل تشغيلة تعيد كتابة كل ملف لمجرّد تحديث retrieved_at — مئات
+    الملفات في كل PR دوري دون أي تغيير حقيقي يُراجَع.
+    """
+    try:
+        old_text = path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return _content_key(old_text) == _content_key(new_text)
+
+
 def load_done_from_output(out_dir: Path) -> set[str]:
     """يستنتج الروابط المنجَزة من ملفات المخرجات نفسها (حقل source_url).
 
@@ -158,7 +206,8 @@ def process_html(
     existing: dict[str, OutputEntry] | None = None,
     etag: str | None = None,
     last_modified: str | None = None,
-) -> tuple[LawDocument, list[str]]:
+) -> tuple[LawDocument, list[str], bool]:
+    """يحوّل صفحة ويكتبها؛ يعيد (الوثيقة، التحذيرات، هل تغيّر الملف على القرص)."""
     doc = get_adapter(source).parse(html, url)
     # حارس M-1: ناتج نثري بلا مواد سيطمس ملفًا قائمًا يحوي مواد لنفس الرابط
     # مؤشّر قوي على فشل التقطيع (تغيّر بنية المصدر) لا وثيقة نثرية جديدة —
@@ -199,7 +248,11 @@ def process_html(
     # القديمة. العكس — وهو ما كان — يفقد الوثيقة كليًا إن فشلت الكتابة
     # بعد الحذف (قرص ممتلئ، انقطاع العملية)، وهو مسار يمرّ به كل ملف
     # ينتقل بين المجلدات في تشغيلة إعادة التصنيف الشهرية.
-    atomic_write(path, format_document(doc))
+    new_text = format_document(doc)
+    if path.exists() and _unchanged_on_disk(path, new_text):
+        print(f"بلا تغيير في المحتوى: {path}")
+        return doc, warnings, False
+    atomic_write(path, new_text)
     if existing is not None:
         old_entry = existing.get(doc.source_url)
         if old_entry is not None and old_entry.path != path and old_entry.path.exists():
@@ -214,7 +267,7 @@ def process_html(
         unit = "بند" if doc.is_decision else "مادة"
         count = f"{len(doc.articles)} "
     print(f"[{doc.doc_type}] {count}{unit} ← {path}")
-    return doc, warnings
+    return doc, warnings, True
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -362,6 +415,7 @@ def _process_urls(urls: list[str], args: argparse.Namespace, fetcher: Fetcher) -
     # فهرس source_url ← مسار الملف الحالي، يُبنى مرة واحدة لكل التشغيلة:
     # يُستخدم لتثبيت هوية الوثيقة (process_html) ولاشتقاق حالة الاستئناف الدائمة
     existing = build_source_index(Path(args.out))
+    curated = build_curated_aliases(Path(args.out))
     done: set[str] = set()
     if args.resume:
         done = load_done(DONE_LOG)
@@ -375,6 +429,10 @@ def _process_urls(urls: list[str], args: argparse.Namespace, fetcher: Fetcher) -
     for position, raw_url in enumerate(urls, start=1):
         url = canonical_url(raw_url)  # هوية موحّدة عبر resume/check-updates/الفهرس
         if args.resume and url in done:
+            stats.skipped += 1
+            continue
+        if url not in existing and url in curated:
+            print(f"تخطٍّ: مغطّى بنصّ رسمي في {curated[url]}: {url}", file=sys.stderr)
             stats.skipped += 1
             continue
         if args.limit is not None and stats.processed >= args.limit:
@@ -405,7 +463,7 @@ def _process_urls(urls: list[str], args: argparse.Namespace, fetcher: Fetcher) -
                     if args.resume:
                         log_done(url, DONE_LOG)
                     continue
-                doc, warnings = process_html(
+                doc, warnings, changed = process_html(
                     result.text,
                     url,
                     source,
@@ -416,7 +474,7 @@ def _process_urls(urls: list[str], args: argparse.Namespace, fetcher: Fetcher) -
                 )
             else:
                 html = fetcher.get(url)
-                doc, warnings = process_html(html, url, source, args, existing)
+                doc, warnings, changed = process_html(html, url, source, args, existing)
         except (FetchError, ParseError, OSError) as exc:
             log_failure(url, str(exc))
             print(f"فشل: {url}: {exc}", file=sys.stderr)
@@ -426,15 +484,19 @@ def _process_urls(urls: list[str], args: argparse.Namespace, fetcher: Fetcher) -
             stats.processed += 1
             if warnings:
                 stats.warned += 1
-            stats.results.append(
-                RunResult(
-                    url=url,
-                    status="ok",
-                    title=doc.title,
-                    doc_type=doc.doc_type,
-                    warnings=warnings,
+            if not changed:
+                stats.unchanged += 1
+                stats.results.append(RunResult(url=url, status="unchanged"))
+            else:
+                stats.results.append(
+                    RunResult(
+                        url=url,
+                        status="ok",
+                        title=doc.title,
+                        doc_type=doc.doc_type,
+                        warnings=warnings,
+                    )
                 )
-            )
             if args.resume:
                 log_done(url, DONE_LOG)
     return stats
