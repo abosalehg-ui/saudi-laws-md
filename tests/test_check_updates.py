@@ -1,3 +1,5 @@
+import re
+
 from scripts.fetch import FetchResult
 from scripts.main import run
 
@@ -137,3 +139,71 @@ def test_check_updates_falls_back_to_full_fetch_for_unseen_url(tmp_path, monkeyp
 
     assert code == 0
     assert calls == {"get": 1, "get_conditional": 0}
+
+
+_ARTICLE_HTML = (
+    "<html><h1>نظام العمل</h1>"
+    '<div class="entry-content"><h2>المادة الأولى</h2><p>'
+    "يسري هذا النظام على جميع المنشآت وفروعها العاملة في المملكة، "
+    "ويُعمل به بعد مضي تسعين يومًا من تاريخ نشره في الجريدة الرسمية."
+    "</p></div></html>"
+)
+
+
+def test_refetch_with_identical_content_does_not_rewrite_file(tmp_path, monkeypatch):
+    # المصدران لا يُرجعان ETag، فكل تشغيلة تجلب الصفحة كاملة: إن طابق
+    # الناتج الملف القائم عدا retrieved_at لا يُعاد كتابته (لا ضجيج في PR)
+    import scripts.main as main_mod
+
+    out = tmp_path / "laws"
+
+    class FakeFetcher:
+        def __init__(self, *a, **k):
+            pass
+
+        def get(self, url):
+            return _ARTICLE_HTML
+
+    monkeypatch.setattr(main_mod, "Fetcher", FakeFetcher)
+    monkeypatch.chdir(tmp_path)
+    argv = ["https://qanoonsa.com/p/3/", "--out", str(out), "--category", "نظام", "--report"]
+
+    assert run(argv) == 0
+    (written,) = out.rglob("*.md")
+    stale = re.sub(r"^retrieved_at: .*$", "retrieved_at: 2020-01-01", written.read_text(encoding="utf-8"), flags=re.M)
+    written.write_text(stale, encoding="utf-8")
+
+    assert run(argv) == 0
+    assert written.read_text(encoding="utf-8") == stale  # لا إعادة كتابة
+    assert "بلا تغيير" in (tmp_path / "logs" / "summary.md").read_text(encoding="utf-8")
+
+
+def test_url_replaced_by_curated_official_text_is_skipped(tmp_path, monkeypatch):
+    # نصّ رسمي (boe) يحمل رابط نسخته المكشوطة السابقة في also_available_from:
+    # الكاشط لا يجلب ذلك الرابط ولا يكتب نسخة مكرّرة بجانب النصّ الرسمي
+    import scripts.main as main_mod
+
+    out = tmp_path / "laws"
+    official = out / "نظام" / "نظام العمل.md"
+    official.parent.mkdir(parents=True)
+    official.write_text(
+        '---\ntitle: "نظام العمل"\nsource: "boe"\n'
+        'source_url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/x/1"\n'
+        'also_available_from: ["https://nezams.com/نظام-العمل/"]\n---\n\n# نظام العمل\n',
+        encoding="utf-8",
+    )
+
+    class FakeFetcher:
+        def __init__(self, *a, **k):
+            pass
+
+        def get(self, url):
+            raise AssertionError("لا يُجلب رابط مغطّى بنصّ رسمي")
+
+        get_conditional = get
+
+    monkeypatch.setattr(main_mod, "Fetcher", FakeFetcher)
+    monkeypatch.chdir(tmp_path)
+
+    assert run(["https://nezams.com/نظام-العمل/", "--out", str(out), "--check-updates"]) == 0
+    assert list(out.rglob("*.md")) == [official]

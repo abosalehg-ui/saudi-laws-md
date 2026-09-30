@@ -22,6 +22,7 @@ from pathlib import Path
 
 from .formatter import atomic_write
 from .frontmatter import read_field, read_list_field, set_list_field
+from .schema import CURATED_SOURCES
 from .urls import canonical_url
 
 _FIELD = "also_available_from"
@@ -61,6 +62,10 @@ def annotate_duplicates(out_dir: Path, dry_run: bool = False) -> tuple[int, int]
         path = paths[0]
         text = path.read_text(encoding="utf-8")
         if not read_list_field(text, _FIELD):
+            continue
+        # في نصّ رسمي مستورد الحقل يشير إلى النسخة المكشوطة التي حلّ محلّها
+        # عمدًا (خارج المُدوَّنة)، لا إلى نسخة مفقودة؛ وحذفه يُعيد كشطها مكرّرة
+        if read_field(text, "source") in CURATED_SOURCES:
             continue
         files_touched += 1
         if dry_run:
