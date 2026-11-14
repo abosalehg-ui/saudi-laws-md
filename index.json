@@ -7192,7 +7192,10 @@
     "category": "التنظيمات",
     "source": "qanoonsa",
     "source_url": "https://qanoonsa.com/p/500602/",
-    "publish_date_gregorian": "2023-11-10"
+    "publish_date_gregorian": "2023-11-10",
+    "also_available_from": [
+      "https://qanoonsa.com/p/500602-2/"
+    ]
   },
   {
     "path": "laws/التنظيمات/تنظيم الهيئة السعودية للسياحة.md",
@@ -11947,7 +11950,10 @@
     "source": "qanoonsa",
     "source_url": "https://qanoonsa.com/p/500605/",
     "issued_date_hijri": "1444-11-25",
-    "publish_date_gregorian": "2023-11-10"
+    "publish_date_gregorian": "2023-11-10",
+    "also_available_from": [
+      "https://qanoonsa.com/p/500605-2/"
+    ]
   },
   {
     "path": "laws/قرار/1444/وزارة البيئة والمياه والزراعة قرار رقم (٢٣٤١١٦) اعتماد دليل الأمن الحيوي لاستزراع الأسماك في المملكة.md",
@@ -14249,7 +14255,10 @@
     "source": "qanoonsa",
     "source_url": "https://qanoonsa.com/p/500601/",
     "issued_date_hijri": "1445-04-16",
-    "publish_date_gregorian": "2023-11-10"
+    "publish_date_gregorian": "2023-11-10",
+    "also_available_from": [
+      "https://qanoonsa.com/p/500601-2/"
+    ]
   },
   {
     "path": "laws/قرار/1445/قرار مجلس الوزراء رقم (٣٠٧) تعديل المدة المحددة للعمل بضوابط إيقاف الخدمات.md",
@@ -14259,7 +14268,10 @@
     "source": "qanoonsa",
     "source_url": "https://qanoonsa.com/p/500603/",
     "issued_date_hijri": "1445-04-16",
-    "publish_date_gregorian": "2023-11-10"
+    "publish_date_gregorian": "2023-11-10",
+    "also_available_from": [
+      "https://qanoonsa.com/p/500603-2/"
+    ]
   },
   {
     "path": "laws/قرار/1445/قرار مجلس الوزراء رقم (٣٣٧) ضوابط للعمل خارج أوقات الدوام الرسمي وأيام العطل والعيدين.md",
@@ -21605,7 +21617,10 @@
     "source": "qanoonsa",
     "source_url": "https://qanoonsa.com/p/500601-2/",
     "publish_date_gregorian": "2023-11-10",
-    "content_status": "ناقص"
+    "content_status": "ناقص",
+    "also_available_from": [
+      "https://qanoonsa.com/p/500601/"
+    ]
   },
   {
     "path": "laws/قرار/غير-مؤرخ/قرار مجلس الوزراء رقم (٣٠٧) تعديل المدة المحددة للعمل بضوابط إيقاف الخدمات.md",
@@ -21615,7 +21630,10 @@
     "source": "qanoonsa",
     "source_url": "https://qanoonsa.com/p/500603-2/",
     "publish_date_gregorian": "2023-11-10",
-    "content_status": "ناقص"
+    "content_status": "ناقص",
+    "also_available_from": [
+      "https://qanoonsa.com/p/500603/"
+    ]
   },
   {
     "path": "laws/قرار/غير-مؤرخ/قرار مجلس الوزراء رقم (٣١٠) الموافقة على أن يكون احتساب المدد في جميع الإجراءات والتعاملات الرسمية على أساس ال.md",
@@ -21743,7 +21761,10 @@
     "source": "qanoonsa",
     "source_url": "https://qanoonsa.com/p/500605-2/",
     "publish_date_gregorian": "2023-11-10",
-    "content_status": "ناقص"
+    "content_status": "ناقص",
+    "also_available_from": [
+      "https://qanoonsa.com/p/500605/"
+    ]
   },
   {
     "path": "laws/قرار/قرار مجلس الوزراء رقم (١٠٩) الموافقة على حوكمة طلبات التغيير للاستراتيجيات الوطنية.md",
@@ -27239,6 +27260,9 @@
     "source": "qanoonsa",
     "source_url": "https://qanoonsa.com/p/500602-2/",
     "publish_date_gregorian": "2023-11-10",
-    "content_status": "ناقص"
+    "content_status": "ناقص",
+    "also_available_from": [
+      "https://qanoonsa.com/p/500602/"
+    ]
   }
 ]
